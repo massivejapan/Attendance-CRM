@@ -1,0 +1,129 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id              String         @id @default(cuid())
+  name            String
+  username        String         @unique
+  email           String?        @unique
+  password        String
+  role            String         @default("TEACHER") // "SUPER_ADMIN" | "TEACHER"
+  phone           String?
+  isActive        Boolean        @default(true)
+  assignedBatchIds String        @default("[]") // JSON string array of assigned batch IDs
+  assignedDays    String         @default("[]") // JSON string array of days
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  
+  attendancesTaken Attendance[]
+  classLogs       ClassLog[]
+}
+
+model Batch {
+  id                 String          @id @default(cuid())
+  name               String          @unique
+  code               String?
+  scheduleDays       String?         // e.g. "Sat Mon Wed" or "Sun Tue Thu"
+  timeSlot           String?         // e.g. "10:00 AM - 12:00 PM"
+  startDate          DateTime?
+  endDate            DateTime?
+  estimatedEndDate   String?         // YYYY-MM-DD (আনুমানিক সমাপ্তির সম্ভাব্য তারিখ)
+  targetTotalClasses Int             @default(72)
+  completedClasses   Int             @default(0)
+  status             String          @default("RUNNING") // "RUNNING" | "COMPLETED" | "UPCOMING"
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+
+  students      Student[]
+  attendances   Attendance[]
+  classLogs     ClassLog[]
+}
+
+model Student {
+  id                 String          @id @default(cuid())
+  studentIdCode      String          @unique // e.g. "25110", "25235"
+  name               String
+  mobileNumber       String?
+  guardianNumber     String?
+  refInfo            String?
+  status             String          @default("ACTIVE") // "ACTIVE" | "INACTIVE" | "COMPLETED"
+  batchId            String?
+  batchName          String?
+  
+  // Career / Interview / COE / Visa Tracking Fields
+  milestoneStage     String          @default("LANGUAGE_COURSE")
+  interviewDate      String?         // YYYY-MM-DD
+  interviewTime      String?         // e.g. "11:30 AM"
+  interviewCompany   String?
+  interviewPlatform  String?
+  coeNumber          String?
+  coeResultDate      String?
+  visaIssueDate      String?
+  visaStatusNotes    String?
+  batchHistory       String          @default("[]") // JSON string array of transfer history
+  
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+
+  batch       Batch?       @relation(fields: [batchId], references: [id], onDelete: SetNull)
+  attendances Attendance[]
+}
+
+model Attendance {
+  id                    String   @id @default(cuid())
+  studentId             String
+  batchId               String
+  teacherId             String?
+  substituteTeacherName String?
+  date                  String   // YYYY-MM-DD
+  dayName               String?  // e.g. "Sat", "Mon"
+  status                String   @default("PRESENT") // "PRESENT" | "ABSENT" | "EXCUSED" | "OFF_DAY" | "BATCH_CHANGED"
+  note                  String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  batch   Batch   @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  teacher User?   @relation(fields: [teacherId], references: [id], onDelete: SetNull)
+
+  @@unique([studentId, batchId, date])
+}
+
+model ClassLog {
+  id            String   @id @default(cuid())
+  batchId       String
+  teacherId     String?
+  teacherName   String
+  isSubstitute  Boolean  @default(false)
+  date          String   // YYYY-MM-DD
+  dayName       String?
+  topicCovered  String
+  homework      String?
+  presentCount  Int      @default(0)
+  absentCount   Int      @default(0)
+  excusedCount  Int      @default(0)
+  totalStudents Int      @default(0)
+  submittedAt   DateTime @default(now())
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  batch   Batch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  teacher User? @relation(fields: [teacherId], references: [id], onDelete: SetNull)
+
+  @@unique([batchId, date])
+}
+
+model AppSetting {
+  id               String    @id @default(cuid())
+  key              String    @unique
+  value            String
+  description      String?
+  lastSyncAt       DateTime?
+  updatedAt        DateTime  @updatedAt
+}
