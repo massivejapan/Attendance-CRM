@@ -55,11 +55,11 @@ async function seed() {
   const adminPassword = await bcrypt.hash("admin123", 10);
   const teacherPassword = await bcrypt.hash("teacher123", 10);
 
-  const admin = await prisma.user.create({
+  await prisma.user.create({
     data: {
       name: "Super Administrator",
       username: "admin",
-      email: "admin@mjli-attendance.com",
+      email: "admin@massivejapan.com",
       password: adminPassword,
       role: "SUPER_ADMIN",
       isActive: true,
@@ -68,11 +68,11 @@ async function seed() {
   });
   console.log("✓ Super Admin created: admin / admin123");
 
-  const mam = await prisma.user.create({
+  await prisma.user.create({
     data: {
       name: "MAM Sir",
       username: "mam",
-      email: "mam@mjli-attendance.com",
+      email: "mam@massivejapan.com",
       password: teacherPassword,
       role: "TEACHER",
       phone: "01711-223344",
@@ -82,11 +82,11 @@ async function seed() {
     },
   });
 
-  const shakil = await prisma.user.create({
+  await prisma.user.create({
     data: {
       name: "Shakil Sir",
       username: "shakil",
-      email: "shakil@mjli-attendance.com",
+      email: "shakil@massivejapan.com",
       password: teacherPassword,
       role: "TEACHER",
       phone: "01822-334455",
@@ -96,11 +96,11 @@ async function seed() {
     },
   });
 
-  const nazrul = await prisma.user.create({
+  await prisma.user.create({
     data: {
       name: "Nazrul Islam Sir",
       username: "nazrul",
-      email: "nazrul@mjli-attendance.com",
+      email: "nazrul@massivejapan.com",
       password: teacherPassword,
       role: "TEACHER",
       phone: "01933-445566",
@@ -111,150 +111,186 @@ async function seed() {
   });
   console.log("✓ Core Teachers created (mam, shakil, nazrul)");
 
-  // 3. Process Master Batch & Student Information
+  // 3. Pre-create all batches from both files
   const masterFile = path.join(__dirname, "../MJLI_Batch_Information_Connected.xlsx");
-  const batchMap = new Map(); // name -> batch record
+  const attFile = path.join(__dirname, "../ATTENDANCE_SHEET_FIXED.xlsx");
+
+  const batchNames = new Set();
+  let masterRows = [];
 
   if (fs.existsSync(masterFile)) {
-    console.log(`\nReading Master File: ${path.basename(masterFile)}...`);
     const wb = xlsx.readFile(masterFile);
-
     const masterSheetName = wb.SheetNames.find((s) => s.toLowerCase().includes("master"));
     if (masterSheetName) {
-      const masterRows = xlsx.utils.sheet_to_json(wb.Sheets[masterSheetName], { defval: "" });
-      console.log(`Found ${masterRows.length} student records in ${masterSheetName}`);
-
-      for (const row of masterRows) {
-        const batchName = String(row["Batch"] || "").trim();
-        const studentIdCode = String(row["Student ID"] || "").trim();
-        const studentName = String(row["Student Name"] || "").trim();
-        const mobileNumber = String(row["Mobile Number"] || "").trim();
-        const guardianNumber = String(row["Guardian Number"] || "").trim();
-        const courseStatus = String(row["Course Status"] || "").trim().toLowerCase();
-
-        if (!studentIdCode || !studentName) continue;
-
-        let batch = null;
-        if (batchName) {
-          if (!batchMap.has(batchName)) {
-            const isExplicitRunning = RUNNING_BATCH_CONFIG[batchName] || courseStatus.includes("run");
-            const status = isExplicitRunning ? "RUNNING" : "COMPLETED";
-            const config = RUNNING_BATCH_CONFIG[batchName] || {};
-
-            const newBatch = await prisma.batch.upsert({
-              where: { name: batchName },
-              update: {},
-              create: {
-                name: batchName,
-                scheduleDays: config.scheduleDays || (batchName.includes("24") || batchName.includes("25") ? "Sun Tue Thu" : "Sat Mon Wed"),
-                timeSlot: config.timeSlot || "10:00 AM - 12:00 PM",
-                startDate: config.startDate ? new Date(config.startDate) : new Date("2025-01-01"),
-                estimatedEndDate: config.estimatedEndDate || (status === "RUNNING" ? "2026-12-31" : "2025-07-01"),
-                targetTotalClasses: config.targetTotalClasses || 72,
-                completedClasses: config.completedClasses || (status === "COMPLETED" ? 72 : 20),
-                status: status,
-              },
-            });
-            batchMap.set(batchName, newBatch);
-          }
-          batch = batchMap.get(batchName);
-        }
-
-        // Realistic milestones for tracking demonstration
-        let milestoneStage = "LANGUAGE_COURSE";
-        let interviewCompany = null;
-        let interviewDate = null;
-        let interviewTime = null;
-        let coeNumber = null;
-        let visaIssueDate = null;
-        let visaNotes = null;
-
-        if (studentIdCode === "25235") {
-          milestoneStage = "VISA_APPROVED";
-          coeNumber = "COE-2026-TK890";
-          visaIssueDate = "2026-09-10";
-          visaNotes = "Visa Approved. Flight next month.";
-        } else if (studentIdCode === "25236") {
-          milestoneStage = "INTERVIEW_SCHEDULED";
-          interviewDate = "2026-09-25";
-          interviewTime = "11:30 AM";
-          interviewCompany = "Tokyo Care Services Corp";
-        } else if (studentIdCode === "25110") {
-          milestoneStage = "COE_PROCESSING";
-          coeNumber = "COE-2026-OSAKA12";
-          visaNotes = "Documents submitted to Immigration.";
-        } else if (studentIdCode === "155") {
-          milestoneStage = "FLIGHT_READY";
-          visaIssueDate = "2026-09-01";
-          visaNotes = "Ticket confirmed.";
-        }
-
-        const isStudentComplete = courseStatus.includes("complete") || courseStatus.includes("closed");
-
-        await prisma.student.upsert({
-          where: { studentIdCode: studentIdCode },
-          update: {
-            name: studentName,
-            mobileNumber: mobileNumber === "0" ? null : mobileNumber,
-            guardianNumber: guardianNumber === "0" ? null : guardianNumber,
-            batchId: batch ? batch.id : null,
-            batchName: batch ? batch.name : null,
-            status: isStudentComplete ? "COMPLETED" : "ACTIVE",
-          },
-          create: {
-            studentIdCode: studentIdCode,
-            name: studentName,
-            mobileNumber: mobileNumber === "0" ? null : mobileNumber,
-            guardianNumber: guardianNumber === "0" ? null : guardianNumber,
-            batchId: batch ? batch.id : null,
-            batchName: batch ? batch.name : null,
-            status: isStudentComplete ? "COMPLETED" : "ACTIVE",
-            milestoneStage,
-            interviewCompany,
-            interviewDate,
-            interviewTime,
-            coeNumber,
-            visaIssueDate,
-            visaStatusNotes: visaNotes,
-          },
-        });
-      }
-      console.log("✓ Master students and batches imported successfully.");
+      masterRows = xlsx.utils.sheet_to_json(wb.Sheets[masterSheetName], { defval: "" });
+      masterRows.forEach((r) => {
+        const b = String(r["Batch"] || "").trim();
+        if (b) batchNames.add(b);
+      });
     }
   }
 
-  // 4. Process Attendance Sheet File
-  const attFile = path.join(__dirname, "../ATTENDANCE_SHEET_FIXED.xlsx");
+  let attWb = null;
   if (fs.existsSync(attFile)) {
-    console.log(`\nReading Attendance File: ${path.basename(attFile)}...`);
-    const wb = xlsx.readFile(attFile);
-
-    for (const sheetName of wb.SheetNames) {
-      if (sheetName.toLowerCase().includes("orginal") || sheetName.toLowerCase().includes("original")) {
-        continue;
+    attWb = xlsx.readFile(attFile);
+    attWb.SheetNames.forEach((s) => {
+      if (!s.toLowerCase().includes("orginal") && !s.toLowerCase().includes("original")) {
+        const b = s.trim();
+        if (b) batchNames.add(b);
       }
-      const sheet = wb.Sheets[sheetName];
+    });
+  }
+
+  console.log(`Creating ${batchNames.size} batches...`);
+  const batchesToCreate = [];
+  for (const bName of batchNames) {
+    const isExplicitRunning = !!RUNNING_BATCH_CONFIG[bName] || bName.toLowerCase().includes("22") || bName.toLowerCase().includes("21") || bName.toLowerCase().includes("20");
+    const config = RUNNING_BATCH_CONFIG[bName] || {};
+    const status = isExplicitRunning ? "RUNNING" : "COMPLETED";
+
+    batchesToCreate.push({
+      name: bName,
+      scheduleDays: config.scheduleDays || (bName.includes("24") || bName.includes("25") ? "Sun Tue Thu" : "Sat Mon Wed"),
+      timeSlot: config.timeSlot || "10:00 AM - 12:00 PM",
+      startDate: config.startDate ? new Date(config.startDate) : new Date("2025-01-01"),
+      estimatedEndDate: config.estimatedEndDate || (status === "RUNNING" ? "2026-12-31" : "2025-07-01"),
+      targetTotalClasses: config.targetTotalClasses || 72,
+      completedClasses: config.completedClasses || (status === "COMPLETED" ? 72 : 20),
+      status: status,
+    });
+  }
+
+  await prisma.batch.createMany({
+    data: batchesToCreate,
+    skipDuplicates: true,
+  });
+
+  const allBatches = await prisma.batch.findMany({});
+  const batchMap = new Map();
+  allBatches.forEach((b) => batchMap.set(b.name, b));
+  console.log(`✓ ${allBatches.length} batches saved to database.`);
+
+  // 4. Prepare Students from Master File
+  const uniqueStudentsMap = new Map(); // studentIdCode -> student object
+
+  for (const row of masterRows) {
+    const batchName = String(row["Batch"] || "").trim();
+    const studentIdCode = String(row["Student ID"] || "").trim();
+    const studentName = String(row["Student Name"] || "").trim();
+    const mobileNumber = String(row["Mobile Number"] || "").trim();
+    const guardianNumber = String(row["Guardian Number"] || "").trim();
+    const courseStatus = String(row["Course Status"] || "").trim().toLowerCase();
+
+    if (!studentIdCode || !studentName) continue;
+    if (uniqueStudentsMap.has(studentIdCode)) continue; // keep first occurrence
+
+    const batch = batchMap.get(batchName);
+
+    let milestoneStage = "LANGUAGE_COURSE";
+    let interviewCompany = null;
+    let interviewDate = null;
+    let interviewTime = null;
+    let coeNumber = null;
+    let visaIssueDate = null;
+    let visaNotes = null;
+
+    if (studentIdCode === "25235") {
+      milestoneStage = "VISA_APPROVED";
+      coeNumber = "COE-2026-TK890";
+      visaIssueDate = "2026-09-10";
+      visaNotes = "Visa Approved. Flight next month.";
+    } else if (studentIdCode === "25236") {
+      milestoneStage = "INTERVIEW_SCHEDULED";
+      interviewDate = "2026-09-25";
+      interviewTime = "11:30 AM";
+      interviewCompany = "Tokyo Care Services Corp";
+    } else if (studentIdCode === "25110") {
+      milestoneStage = "COE_PROCESSING";
+      coeNumber = "COE-2026-OSAKA12";
+      visaNotes = "Documents submitted to Immigration.";
+    } else if (studentIdCode === "155") {
+      milestoneStage = "FLIGHT_READY";
+      visaIssueDate = "2026-09-01";
+      visaNotes = "Ticket confirmed.";
+    }
+
+    const isStudentComplete = courseStatus.includes("complete") || courseStatus.includes("closed");
+
+    uniqueStudentsMap.set(studentIdCode, {
+      studentIdCode: studentIdCode,
+      name: studentName,
+      mobileNumber: mobileNumber === "0" ? null : mobileNumber,
+      guardianNumber: guardianNumber === "0" ? null : guardianNumber,
+      batchId: batch ? batch.id : null,
+      batchName: batch ? batch.name : null,
+      status: isStudentComplete ? "COMPLETED" : "ACTIVE",
+      milestoneStage,
+      interviewCompany,
+      interviewDate,
+      interviewTime,
+      coeNumber,
+      visaIssueDate,
+      visaStatusNotes: visaNotes,
+    });
+  }
+
+  // Also scan attendance sheet for any extra students not in master
+  if (attWb) {
+    for (const sheetName of attWb.SheetNames) {
+      if (sheetName.toLowerCase().includes("orginal") || sheetName.toLowerCase().includes("original")) continue;
+      const sheet = attWb.Sheets[sheetName];
+      if (!sheet) continue;
+      const cleanBatchName = sheetName.trim();
+      const batch = batchMap.get(cleanBatchName);
+      const isRunning = batch ? batch.status === "RUNNING" : false;
+
+      const sheetData = xlsx.utils.sheet_to_json(sheet, { header: 1, defval: "" });
+      for (let r = 0; r < sheetData.length; r++) {
+        const row = sheetData[r];
+        const studentId = String(row[1] || "").trim();
+        const studentName = String(row[2] || "").trim();
+        if (studentId && studentName && studentId.length >= 2 && !uniqueStudentsMap.has(studentId) && isNaN(Number(studentName))) {
+          uniqueStudentsMap.set(studentId, {
+            studentIdCode: studentId,
+            name: studentName,
+            mobileNumber: null,
+            guardianNumber: null,
+            batchId: batch ? batch.id : null,
+            batchName: batch ? batch.name : null,
+            status: isRunning ? "ACTIVE" : "COMPLETED",
+            milestoneStage: "LANGUAGE_COURSE",
+          });
+        }
+      }
+    }
+  }
+
+  console.log(`Creating ${uniqueStudentsMap.size} unique students in database...`);
+  await prisma.student.createMany({
+    data: Array.from(uniqueStudentsMap.values()),
+    skipDuplicates: true,
+  });
+
+  const allStudents = await prisma.student.findMany({});
+  const studentMap = new Map();
+  allStudents.forEach((s) => studentMap.set(s.studentIdCode, s));
+  console.log(`✓ ${allStudents.length} students loaded into memory.`);
+
+  // 5. Process Attendance Records & Class Logs
+  const attendanceRecordsMap = new Map();
+  const classLogsMap = new Map();
+  const batchCompletedClassCount = new Map();
+
+  if (attWb) {
+    console.log(`Processing attendance sheets from ${path.basename(attFile)}...`);
+    for (const sheetName of attWb.SheetNames) {
+      if (sheetName.toLowerCase().includes("orginal") || sheetName.toLowerCase().includes("original")) continue;
+      const sheet = attWb.Sheets[sheetName];
       if (!sheet) continue;
 
       const cleanBatchName = sheetName.trim();
-      let batch = await prisma.batch.findUnique({ where: { name: cleanBatchName } });
-      const isConfigRunning = !!RUNNING_BATCH_CONFIG[cleanBatchName];
-
-      if (!batch) {
-        const config = RUNNING_BATCH_CONFIG[cleanBatchName] || {};
-        batch = await prisma.batch.create({
-          data: {
-            name: cleanBatchName,
-            scheduleDays: config.scheduleDays || (cleanBatchName.includes("24") || cleanBatchName.includes("25") ? "Sun Tue Thu" : "Sat Mon Wed"),
-            timeSlot: config.timeSlot || "02:00 PM - 04:00 PM",
-            startDate: config.startDate ? new Date(config.startDate) : new Date("2026-01-01"),
-            estimatedEndDate: config.estimatedEndDate || (isConfigRunning ? "2026-12-31" : "2025-12-31"),
-            targetTotalClasses: 72,
-            status: isConfigRunning ? "RUNNING" : "COMPLETED",
-          },
-        });
-        batchMap.set(cleanBatchName, batch);
-      }
+      const batch = batchMap.get(cleanBatchName);
+      if (!batch) continue;
 
       const sheetData = xlsx.utils.sheet_to_json(sheet, { header: 1, defval: "" });
       if (sheetData.length < 9) continue;
@@ -294,16 +330,8 @@ async function seed() {
         }
       }
 
-      // Update completedClasses count in batch
-      if (colMap.length > 0) {
-        await prisma.batch.update({
-          where: { id: batch.id },
-          data: { completedClasses: colMap.length },
-        });
-      }
+      batchCompletedClassCount.set(batch.id, colMap.length);
 
-      // Process students and attendance records
-      let recordCount = 0;
       for (let r = dateRowIdx + 1; r < sheetData.length; r++) {
         const row = sheetData[r];
         const studentId = String(row[1] || "").trim();
@@ -311,25 +339,9 @@ async function seed() {
 
         if (!studentId || !studentName || studentId.length < 2) continue;
 
-        let student = await prisma.student.findUnique({ where: { studentIdCode: studentId } });
-        if (!student) {
-          student = await prisma.student.create({
-            data: {
-              studentIdCode: studentId,
-              name: studentName,
-              batchId: batch.id,
-              batchName: batch.name,
-              status: isConfigRunning ? "ACTIVE" : "COMPLETED",
-            },
-          });
-        } else if (!student.batchId) {
-          await prisma.student.update({
-            where: { id: student.id },
-            data: { batchId: batch.id, batchName: batch.name },
-          });
-        }
+        const student = studentMap.get(studentId);
+        if (!student) continue;
 
-        // Insert attendance records
         for (const col of colMap) {
           const mark = String(row[col.colIndex] || "").trim().toUpperCase();
           if (!mark) continue;
@@ -353,61 +365,69 @@ async function seed() {
             continue;
           }
 
-          await prisma.attendance.upsert({
-            where: {
-              studentId_batchId_date: {
-                studentId: student.id,
-                batchId: batch.id,
-                date: col.dateStr,
-              },
-            },
-            update: { status, note, dayName: col.dayName },
-            create: {
-              studentId: student.id,
-              batchId: batch.id,
-              date: col.dateStr,
-              dayName: col.dayName,
-              status,
-              note,
-            },
-          }).catch(() => {});
-          recordCount++;
+          const uniqueKey = `${student.id}_${batch.id}_${col.dateStr}`;
+          attendanceRecordsMap.set(uniqueKey, {
+            studentId: student.id,
+            batchId: batch.id,
+            date: col.dateStr,
+            dayName: col.dayName,
+            status,
+            note,
+          });
         }
       }
 
-      // Create a sample class log for the latest date
       if (colMap.length > 0) {
         const lastCol = colMap[colMap.length - 1];
-        await prisma.classLog.upsert({
-          where: {
-            batchId_date: {
-              batchId: batch.id,
-              date: lastCol.dateStr,
-            },
-          },
-          update: {},
-          create: {
-            batchId: batch.id,
-            date: lastCol.dateStr,
-            dayName: lastCol.dayName,
-            teacherName: lastCol.teacherName || "MAM Sir",
-            topicCovered: "অধ্যায় ৪: জাপানি ব্যাকরণ অনুশীলন ও শব্দার্থ রিভিশন সম্পন্ন করা হয়েছে।",
-            homework: "পৃষ্ঠা ৪২-এর অনুশীলন ১ থেকে ১০ খাতায় লিখে আনা।",
-            presentCount: 5,
-            absentCount: 1,
-            excusedCount: 0,
-            totalStudents: 6,
-          },
-        }).catch(() => {});
+        const logKey = `${batch.id}_${lastCol.dateStr}`;
+        classLogsMap.set(logKey, {
+          batchId: batch.id,
+          date: lastCol.dateStr,
+          dayName: lastCol.dayName,
+          teacherName: lastCol.teacherName || "MAM Sir",
+          topicCovered: "অধ্যায় ৪: জাপানি ব্যাকরণ অনুশীলন ও শব্দার্থ রিভিশন সম্পন্ন করা হয়েছে।",
+          homework: "পৃষ্ঠা ৪২-এর অনুশীলন ১ থেকে ১০ খাতায় লিখে আনা।",
+          presentCount: 5,
+          absentCount: 1,
+          excusedCount: 0,
+          totalStudents: 6,
+        });
       }
-
-      console.log(`✓ Processed batch sheet: ${cleanBatchName} (${recordCount} marks)`);
     }
   }
 
-  // 5. Update assigned batches for teachers (Assign Running Batches)
+  // Update batch completed class counts
+  for (const [batchId, count] of batchCompletedClassCount.entries()) {
+    if (count > 0) {
+      await prisma.batch.update({
+        where: { id: batchId },
+        data: { completedClasses: count },
+      });
+    }
+  }
+
+  // 6. Bulk Insert Attendance & Class Logs in Chunks
+  console.log(`\nBulk inserting ${attendanceRecordsMap.size} attendance records to Supabase...`);
+  const attArray = Array.from(attendanceRecordsMap.values());
+  const chunkSize = 1500;
+  for (let i = 0; i < attArray.length; i += chunkSize) {
+    const chunk = attArray.slice(i, i + chunkSize);
+    await prisma.attendance.createMany({
+      data: chunk,
+      skipDuplicates: true,
+    });
+    console.log(`✓ Inserted chunk ${Math.floor(i / chunkSize) + 1} (${chunk.length} records)`);
+  }
+
+  console.log(`Bulk inserting ${classLogsMap.size} class logs...`);
+  const logsArray = Array.from(classLogsMap.values());
+  await prisma.classLog.createMany({
+    data: logsArray,
+    skipDuplicates: true,
+  });
+
+  // 7. Update assigned batches for teachers (Assign Running Batches)
   const runningBatches = await prisma.batch.findMany({ where: { status: "RUNNING" } });
-  const allBatches = await prisma.batch.findMany({});
   const allBatchIds = allBatches.map((b) => b.id);
   const runningBatchIds = runningBatches.map((b) => b.id);
 
@@ -439,7 +459,7 @@ async function seed() {
   const totalA = await prisma.attendance.count();
 
   console.log("==========================================");
-  console.log(`🎉 Seeding Complete!`);
+  console.log(`🎉 Supabase PostgreSQL Seeding 100% COMPLETE!`);
   console.log(`- Students: ${totalS}`);
   console.log(`- Total Batches: ${totalB} (Running: ${runningB}, Completed: ${completedB})`);
   console.log(`- Attendance Records: ${totalA}`);
