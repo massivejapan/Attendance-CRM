@@ -32,7 +32,7 @@ export async function GET() {
         include: {
           attendances: {
             orderBy: { date: "desc" },
-            take: 30, // Last 30 attendance records for fast responsiveness
+            take: 10, // Last 10 attendance records for fast responsiveness
           },
         },
         orderBy: { studentIdCode: "asc" },

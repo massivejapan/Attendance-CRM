@@ -25,7 +25,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // Verify valid user for foreign key
+    // Fast foreign key verification
     let validTeacherId: string | null = null;
     let effectiveTeacherName = teacherName || "Teacher";
 
@@ -53,7 +53,7 @@ export async function POST(req: Request) {
 
     const totalStudents = records.length;
 
-    // Fetch batch students once for fast ID resolution
+    // Fast student ID resolution mapping
     const batchStudents = await prisma.student.findMany({
       where: {
         OR: [{ batchId }, { id: { in: records.map((r) => r.studentId) } }],
@@ -67,39 +67,29 @@ export async function POST(req: Request) {
       studentIdMap.set(s.studentIdCode, s.id);
     });
 
-    // 1. Process attendance records directly without pgbouncer transaction conflicts
-    for (const rec of records) {
-      const resolvedStudentId = studentIdMap.get(rec.studentId) || rec.studentId;
+    // 1. Bulk Delete existing records for this batch & date (1 fast query)
+    await prisma.attendance.deleteMany({
+      where: { batchId, date },
+    });
 
-      await prisma.attendance.upsert({
-        where: {
-          studentId_batchId_date: {
-            studentId: resolvedStudentId,
-            batchId,
-            date,
-          },
-        },
-        update: {
-          status: rec.status,
-          note: rec.note || null,
-          dayName: dayName || null,
-          teacherId: validTeacherId,
-          substituteTeacherName: isSubstitute ? effectiveTeacherName : null,
-        },
-        create: {
-          studentId: resolvedStudentId,
-          batchId,
-          date,
-          dayName: dayName || null,
-          status: rec.status,
-          note: rec.note || null,
-          teacherId: validTeacherId,
-          substituteTeacherName: isSubstitute ? effectiveTeacherName : null,
-        },
-      });
-    }
+    // 2. Bulk Insert all records in 1 single query (createMany)
+    const recordsToCreate = records.map((rec) => ({
+      studentId: studentIdMap.get(rec.studentId) || rec.studentId,
+      batchId,
+      date,
+      dayName: dayName || null,
+      status: rec.status,
+      note: rec.note || null,
+      teacherId: validTeacherId,
+      substituteTeacherName: isSubstitute ? effectiveTeacherName : null,
+    }));
 
-    // 2. Upsert ClassLog if topicCovered is provided
+    await prisma.attendance.createMany({
+      data: recordsToCreate,
+      skipDuplicates: true,
+    });
+
+    // 3. Fast Upsert ClassLog if topicCovered is provided (1 query)
     if (topicCovered) {
       await prisma.classLog.upsert({
         where: {

@@ -218,15 +218,18 @@ export const AttendanceSheet: React.FC<AttendanceSheetProps> = ({
       return;
     }
 
-    setIsSubmitting(true);
-
     const records = Object.entries(attendanceMap).map(([studentId, data]) => ({
       studentId,
       status: data.status,
       note: data.note,
     }));
 
-    const result = await saveAttendance(
+    // Optimistic UI: Show Success Modal instantly! (0ms lag)
+    setShowSuccessModal(true);
+    setIsEditMode(false);
+    setIsSubmitting(true);
+
+    saveAttendance(
       selectedBatchId,
       selectedDate,
       dayName,
@@ -234,24 +237,26 @@ export const AttendanceSheet: React.FC<AttendanceSheetProps> = ({
       topicCovered.trim(),
       homework.trim(),
       isSubstitute ? substituteName.trim() : undefined
-    );
-
-    setIsSubmitting(false);
-
-    if (result.success) {
-      setShowSuccessModal(true);
-      setToastMessage({
-        type: "success",
-        text: result.message,
+    )
+      .then((result) => {
+        setIsSubmitting(false);
+        if (result.success) {
+          setToastMessage({
+            type: "success",
+            text: result.message,
+          });
+          setTimeout(() => setToastMessage(null), 5000);
+        } else {
+          setToastMessage({
+            type: "error",
+            text: result.message || "হাজিরা সংরক্ষণ করতে সমস্যা হয়েছে",
+          });
+        }
+      })
+      .catch((err) => {
+        setIsSubmitting(false);
+        console.error("Save attendance error:", err);
       });
-      setIsEditMode(false);
-      setTimeout(() => setToastMessage(null), 5000);
-    } else {
-      setToastMessage({
-        type: "error",
-        text: result.message || "হাজিরা সংরক্ষণ করতে ব্যর্থ হয়েছে",
-      });
-    }
   };
 
   // Super Admin 1-Click Reset / Delete Attendance for this date
