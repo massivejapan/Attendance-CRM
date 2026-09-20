@@ -36,6 +36,8 @@ interface AppContextType {
   getTeacherBatches: (teacherId: string) => Batch[];
   isAttendanceSubmittedForDate: (batchId: string, date: string) => boolean;
   getClassLogForDate: (batchId: string, date: string) => ClassLog | undefined;
+  getConsecutiveAbsentsForStudent: (studentId: string, beforeDate?: string) => number;
+  deleteAttendanceForDate: (batchId: string, date: string) => Promise<{ success: boolean; message: string }>;
   saveAttendance: (
     batchId: string,
     date: string,
@@ -238,6 +240,45 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         .filter((r) => r.note)
         .map((r) => ({ date: r.date, note: r.note || "" })),
     };
+  };
+
+  const getConsecutiveAbsentsForStudent = (studentId: string, beforeDate?: string): number => {
+    const studentRecords = attendances
+      .filter((a) => a.studentId === studentId && (beforeDate ? a.date < beforeDate : true))
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+    let count = 0;
+    for (const record of studentRecords) {
+      if (record.status === "ABSENT") {
+        count++;
+      } else if (record.status === "PRESENT") {
+        break;
+      }
+    }
+    return count;
+  };
+
+  const deleteAttendanceForDate = async (
+    batchId: string,
+    date: string
+  ): Promise<{ success: boolean; message: string }> => {
+    setAttendances((prev) =>
+      prev.filter((a) => !(a.batchId === batchId && a.date === date))
+    );
+    setClassLogs((prev) =>
+      prev.filter((l) => !(l.batchId === batchId && l.date === date))
+    );
+
+    try {
+      const res = await fetch(
+        `/api/attendance?batchId=${encodeURIComponent(batchId)}&date=${encodeURIComponent(date)}`,
+        { method: "DELETE" }
+      );
+      const data = await res.json();
+      return { success: res.ok && data.success, message: data.message || data.error };
+    } catch (e: any) {
+      return { success: false, message: e.message || "Failed to reset attendance" };
+    }
   };
 
   const resetDatabaseToSeed = async (): Promise<{ success: boolean; message: string }> => {
@@ -614,6 +655,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         getTeacherBatches,
         isAttendanceSubmittedForDate,
         getClassLogForDate,
+        getConsecutiveAbsentsForStudent,
+        deleteAttendanceForDate,
         saveAttendance,
         shiftStudentBatch,
         updateStudentMilestone,

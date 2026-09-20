@@ -148,3 +148,39 @@ export async function POST(req: Request) {
     );
   }
 }
+
+export async function DELETE(req: Request) {
+  try {
+    const { searchParams } = new URL(req.url);
+    const batchId = searchParams.get("batchId");
+    const date = searchParams.get("date");
+
+    if (!batchId || !date) {
+      return NextResponse.json(
+        { success: false, error: "batchId এবং date আবশ্যক" },
+        { status: 400 }
+      );
+    }
+
+    await prisma.$transaction([
+      prisma.attendance.deleteMany({
+        where: { batchId, date },
+      }),
+      prisma.classLog.deleteMany({
+        where: { batchId, date },
+      }),
+    ]);
+
+    return NextResponse.json({
+      success: true,
+      message: `${date} তারিখের হাজিরা সফলভাবে রিসেট করা হয়েছে! শিক্ষক এখন পুনরায় নতুন করে হাজিরা দিতে পারবেন।`,
+    });
+  } catch (error: any) {
+    console.error("Delete attendance error:", error);
+    return NextResponse.json(
+      { success: false, error: error.message || "Failed to delete attendance" },
+      { status: 500 }
+    );
+  }
+}
+
