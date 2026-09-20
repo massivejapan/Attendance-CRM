@@ -28,6 +28,7 @@ interface AppContextType {
   classLogs: ClassLog[];
   isLoading: boolean;
   isResetting: boolean;
+  login: (username: string, password: string) => Promise<{ success: boolean; error?: string }>;
   loginAs: (userId: string) => void;
   logout: () => void;
   getStudentSummary: (studentId: string) => StudentAttendanceSummary | null;
@@ -56,8 +57,17 @@ interface AppContextType {
   addStudent: (student: Omit<Student, "id" | "joinedDate">) => void;
   updateStudent: (student: Student) => Promise<boolean>;
   deleteStudent: (studentId: string) => Promise<boolean>;
-  addTeacher: (teacher: Omit<User, "id" | "createdAt">) => void;
-  updateTeacher: (teacher: User) => Promise<boolean>;
+  addTeacher: (teacherData: {
+    name: string;
+    username: string;
+    email?: string;
+    phone?: string;
+    password?: string;
+    assignedBatchIds?: string[];
+    assignedDays?: string[];
+  }) => Promise<{ success: boolean; error?: string }>;
+  updateTeacher: (teacher: User & { password?: string }) => Promise<boolean>;
+  deleteTeacher: (teacherId: string) => Promise<boolean>;
   addBatch: (batch: Omit<Batch, "id">) => void;
   updateBatch: (batch: Batch) => Promise<boolean>;
   toggleBatchStatus: (batchId: string, newStatus: "RUNNING" | "COMPLETED") => Promise<boolean>;
@@ -75,9 +85,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
   const [students, setStudents] = useState<Student[]>(initialStudents);
   const [attendances, setAttendances] = useState<AttendanceRecord[]>(initialAttendanceRecords);
   const [classLogs, setClassLogs] = useState<ClassLog[]>(initialClassLogs);
-  const [currentUser, setCurrentUser] = useState<User | null>(initialUsers[0]);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isResetting, setIsResetting] = useState<boolean>(false);
+
+  // Restore session from localStorage on initial render
+  useEffect(() => {
+    try {
+      const savedUser = localStorage.getItem("mjli_user");
+      if (savedUser) {
+        setCurrentUser(JSON.parse(savedUser));
+      }
+    } catch (e) {
+      console.warn("Could not parse saved user session:", e);
+    }
+  }, []);
 
   // Fetch initial data from Prisma Database Bootstrap API
   const refreshData = useCallback(async () => {
@@ -93,9 +115,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
           
           // Re-set current user reference if updated
           setCurrentUser((prev) => {
-            if (!prev) return json.data.users?.[0] || null;
+            if (!prev) return null;
             const match = json.data.users?.find((u: User) => u.id === prev.id || u.username === prev.username);
-            return match || prev;
+            if (match) {
+              localStorage.setItem("mjli_user", JSON.stringify(match));
+              return match;
+            }
+            return prev;
           });
         }
       }
@@ -109,6 +135,44 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
   useEffect(() => {
     refreshData();
   }, [refreshData]);
+
+  // Login handler
+  const login = async (username: string, password: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password }),
+      });
+
+      const json = await res.json();
+      if (res.ok && json.success && json.user) {
+        setCurrentUser(json.user);
+        localStorage.setItem("mjli_user", JSON.stringify(json.user));
+        return { success: true };
+      } else {
+        return { success: false, error: json.error || "ইউজারনেম বা পাসওয়ার্ড ভুল হয়েছে" };
+      }
+    } catch (e: any) {
+      return { success: false, error: e.message || "সার্ভারে সংযোগ করা যায়নি" };
+    }
+  };
+
+  const loginAs = (userId: string) => {
+    const user = users.find((u) => u.id === userId);
+    if (user) {
+      setCurrentUser(user);
+      localStorage.setItem("mjli_user", JSON.stringify(user));
+    }
+  };
+
+  const logout = async () => {
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+    } catch {}
+    localStorage.removeItem("mjli_user");
+    setCurrentUser(null);
+  };
 
   const getBatchStudents = (batchId: string): Student[] => {
     return students.filter((s) => s.batchId === batchId && s.status === "ACTIVE");
@@ -150,36 +214,49 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     const attendancePercentage =
       totalClasses > 0 ? Math.round((presentCount / totalClasses) * 100) : 100;
 
-    let consecutiveAbsents = student.consecutiveAbsents ?? 0;
-    if (studentRecords.length > 0) {
-      consecutiveAbsents = 0;
-      for (const rec of studentRecords) {
-        if (rec.status === "OFF_DAY" || rec.status === "BATCH_CHANGED") continue;
-        if (rec.status === "ABSENT") {
-          consecutiveAbsents++;
-        } else {
-          break;
-        }
+    let consecutiveAbsences = 0;
+    for (const record of studentRecords) {
+      if (record.status === "ABSENT") {
+        consecutiveAbsences++;
+      } else if (record.status === "PRESENT") {
+        break;
       }
     }
 
-    const lastClassStatus = studentRecords.length > 0 ? studentRecords[0].status : undefined;
-
-    const recentNotes = studentRecords
-      .filter((a) => a.note && a.note.trim() !== "")
-      .map((a) => ({ date: a.date, note: a.note! }));
+    const lastClassRecord = studentRecords[0];
 
     return {
       student,
-      totalClasses,
+      totalClasses: Math.max(totalClasses, 1),
       presentCount,
       absentCount,
       excusedCount,
       attendancePercentage,
-      consecutiveAbsents,
-      lastClassStatus,
-      recentNotes,
+      consecutiveAbsents: consecutiveAbsences,
+      lastClassStatus: lastClassRecord ? lastClassRecord.status : undefined,
+      recentNotes: studentRecords
+        .filter((r) => r.note)
+        .map((r) => ({ date: r.date, note: r.note || "" })),
     };
+  };
+
+  const resetDatabaseToSeed = async (): Promise<{ success: boolean; message: string }> => {
+    setIsResetting(true);
+    try {
+      const res = await fetch("/api/reset-data", { method: "POST" });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        await refreshData();
+        return { success: true, message: data.message };
+      } else {
+        return { success: false, message: data.error || "Reset failed" };
+      }
+    } catch (e: any) {
+      console.error("Reset database error:", e);
+      return { success: false, message: e.message || "Failed to reset database" };
+    } finally {
+      setIsResetting(false);
+    }
   };
 
   const saveAttendance = async (
@@ -190,52 +267,40 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     topicCovered: string,
     homework?: string,
     substituteTeacherName?: string
-  ) => {
-    const existingIndex = attendances.findIndex(
-      (a) => a.batchId === batchId && a.date === date
-    );
-    const isUpdate =
-      existingIndex !== -1 ||
-      classLogs.some((cl) => cl.batchId === batchId && cl.date === date);
+  ): Promise<{ success: boolean; message: string; isUpdate: boolean }> => {
+    const effectiveTeacherName = substituteTeacherName || currentUser?.name || "Teacher";
+    const isSubstitute = !!substituteTeacherName;
 
-    const currentTeacherId = currentUser?.id || "usr-admin-1";
-    const teacherName = substituteTeacherName || currentUser?.name || "Teacher";
-
-    // Optimistic UI state update
-    const remainingRecords = attendances.filter(
-      (a) => !(a.batchId === batchId && a.date === date)
-    );
-
-    const newRecords: AttendanceRecord[] = records.map((r, idx) => ({
-      id: `att-${Date.now()}-${idx}`,
+    const newAttendanceRecords: AttendanceRecord[] = records.map((r) => ({
+      id: `att-${Date.now()}-${r.studentId}`,
       studentId: r.studentId,
       batchId,
-      teacherId: currentTeacherId,
+      teacherId: currentUser?.id,
       substituteTeacherName,
       date,
       dayName,
       status: r.status,
       note: r.note,
       createdAt: new Date().toISOString(),
-      updatedAt: isUpdate ? new Date().toISOString() : undefined,
     }));
 
-    setAttendances([...remainingRecords, ...newRecords]);
+    setAttendances((prev) => {
+      const filtered = prev.filter(
+        (a) => !(a.batchId === batchId && a.date === date)
+      );
+      return [...filtered, ...newAttendanceRecords];
+    });
 
     const presentCount = records.filter((r) => r.status === "PRESENT").length;
     const absentCount = records.filter((r) => r.status === "ABSENT").length;
     const excusedCount = records.filter((r) => r.status === "EXCUSED").length;
 
-    const remainingLogs = classLogs.filter(
-      (cl) => !(cl.batchId === batchId && cl.date === date)
-    );
-
     const newLog: ClassLog = {
       id: `log-${Date.now()}`,
       batchId,
-      teacherId: currentTeacherId,
-      teacherName: teacherName,
-      isSubstitute: !!substituteTeacherName,
+      teacherId: currentUser?.id,
+      teacherName: effectiveTeacherName,
+      isSubstitute,
       date,
       dayName,
       topicCovered,
@@ -247,36 +312,42 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       submittedAt: new Date().toISOString(),
     };
 
-    setClassLogs([...remainingLogs, newLog]);
+    setClassLogs((prev) => {
+      const filtered = prev.filter(
+        (l) => !(l.batchId === batchId && l.date === date)
+      );
+      return [...filtered, newLog];
+    });
 
-    // Async Backend Persistence
     try {
-      await fetch("/api/attendance", {
+      const res = await fetch("/api/attendance", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           batchId,
-          teacherId: currentTeacherId,
-          teacherName,
-          isSubstitute: !!substituteTeacherName,
           date,
           dayName,
-          records,
+          teacherId: currentUser?.id,
+          substituteTeacherName,
           topicCovered,
           homework,
+          records,
         }),
       });
+      const data = await res.json();
+      return {
+        success: true,
+        message: data.message || "উপস্থিতি ও ক্লাস লগ ডেটাবেসে সফলভাবে সংরক্ষিত হয়েছে!",
+        isUpdate: data.isUpdate || false,
+      };
     } catch (e) {
-      console.error("Backend attendance sync failed:", e);
+      console.error("Attendance API fallback to local state:", e);
+      return {
+        success: true,
+        message: "উপস্থিতি সফলভাবে গ্রহণ করা হয়েছে (Local State)",
+        isUpdate: false,
+      };
     }
-
-    return {
-      success: true,
-      message: isUpdate
-        ? "হাজিরা সফলভাবে আপডেট করা হয়েছে!"
-        : "হাজিরা ও সিলেবাস লগ সফলভাবে সংরক্ষিত হয়েছে!",
-      isUpdate,
-    };
   };
 
   const shiftStudentBatch = async (
@@ -286,155 +357,75 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
   ): Promise<boolean> => {
     const student = students.find((s) => s.id === studentId);
     const targetBatch = batches.find((b) => b.id === newBatchId);
-    if (!student || !targetBatch || student.batchId === newBatchId) return false;
+    if (!student || !targetBatch) return false;
 
-    const fromBatchName = student.batchName || "অ্যাসাইন নেই";
-    const toBatchName = targetBatch.name;
-
-    // Optimistic UI update
     setStudents((prev) =>
       prev.map((s) => {
         if (s.id === studentId) {
-          const history = s.batchHistory || [];
           return {
             ...s,
             batchId: newBatchId,
-            batchName: toBatchName,
-            batchHistory: [
-              ...history,
-              {
-                fromBatch: fromBatchName,
-                toBatch: toBatchName,
-                date: new Date().toISOString().split("T")[0],
-                reason,
-              },
-            ],
+            batchName: targetBatch.name,
           };
         }
         return s;
       })
     );
 
-    // Backend Persistence
     try {
       await fetch(`/api/students/${studentId}/shift-batch`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          newBatchId,
-          newBatchName: toBatchName,
-          reason,
-          transferredBy: currentUser?.name || "Admin",
-        }),
+        body: JSON.stringify({ newBatchId, reason }),
       });
+      return true;
     } catch (e) {
       console.error("Shift batch backend error:", e);
+      return false;
     }
-
-    return true;
   };
 
   const updateStudentMilestone = async (
     studentId: string,
     milestone: StudentMilestone
   ): Promise<boolean> => {
-    // Optimistic UI update
     setStudents((prev) =>
-      prev.map((s) =>
-        s.id === studentId
-          ? {
-              ...s,
-              milestoneStage: milestone.stage,
-              interviewDate: milestone.interviewDate,
-              interviewTime: milestone.interviewTime,
-              interviewCompany: milestone.interviewCompany,
-              interviewPlatform: milestone.interviewPlatform,
-              coeNumber: milestone.coeNumber,
-              coeResultDate: milestone.coeResultDate,
-              visaIssueDate: milestone.visaIssueDate,
-              visaStatusNotes: milestone.visaStatusNotes,
-              milestone: {
-                ...milestone,
-                updatedAt: new Date().toISOString().split("T")[0],
-              },
-            }
-          : s
-      )
+      prev.map((s) => {
+        if (s.id === studentId) {
+          return {
+            ...s,
+            milestoneStage: milestone.stage,
+            interviewDate: milestone.interviewDate,
+            interviewTime: milestone.interviewTime,
+            interviewCompany: milestone.interviewCompany,
+            interviewPlatform: milestone.interviewPlatform,
+            coeNumber: milestone.coeNumber,
+            coeResultDate: milestone.coeResultDate,
+            visaIssueDate: milestone.visaIssueDate,
+            visaStatusNotes: milestone.visaStatusNotes,
+          };
+        }
+        return s;
+      })
     );
 
-    // Backend Persistence
     try {
       await fetch(`/api/students/${studentId}/milestone`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          milestoneStage: milestone.stage,
-          interviewDate: milestone.interviewDate || null,
-          interviewTime: milestone.interviewTime || null,
-          interviewCompany: milestone.interviewCompany || null,
-          interviewPlatform: milestone.interviewPlatform || null,
-          coeNumber: milestone.coeNumber || null,
-          coeResultDate: milestone.coeResultDate || null,
-          visaIssueDate: milestone.visaIssueDate || null,
-          visaStatusNotes: milestone.visaStatusNotes || null,
-        }),
+        body: JSON.stringify(milestone),
       });
+      return true;
     } catch (e) {
       console.error("Milestone update backend error:", e);
+      return false;
     }
-
-    return true;
-  };
-
-  // 1-Click Test Data Reset function
-  const resetDatabaseToSeed = async (): Promise<{ success: boolean; message: string }> => {
-    setIsResetting(true);
-    try {
-      const res = await fetch("/api/reset-data", { method: "POST" });
-      const json = await res.json();
-      if (json.success) {
-        await refreshData();
-        return {
-          success: true,
-          message: "ডাটাবেজ সফলভাবে রিসেট হয়ে মূল এক্সেল ফাইলে ফিরে এসেছে!",
-        };
-      } else {
-        return {
-          success: false,
-          message: json.error || "ডাটাবেজ রিসেট করতে সমস্যা হয়েছে।",
-        };
-      }
-    } catch (e: any) {
-      return {
-        success: false,
-        message: e.message || "রিসেট ব্যর্থ হয়েছে।",
-      };
-    } finally {
-      setIsResetting(false);
-    }
-  };
-
-  const loginAs = (userId: string) => {
-    const user = users.find((u) => u.id === userId);
-    if (user) {
-      setCurrentUser(user);
-    }
-  };
-
-  const logout = () => {
-    setCurrentUser(null);
   };
 
   const addStudent = (studentData: Omit<Student, "id" | "joinedDate">) => {
-    const batch = batches.find((b) => b.id === studentData.batchId);
     const newStudent: Student = {
       ...studentData,
       id: `s-${Date.now()}`,
-      batchName: batch?.name,
-      joinedDate: new Date().toISOString().split("T")[0],
-      milestone: {
-        stage: "LANGUAGE_COURSE",
-      },
     };
     setStudents((prev) => [...prev, newStudent]);
   };
@@ -442,11 +433,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
   const updateStudent = async (updatedStudent: Student): Promise<boolean> => {
     const batch = batches.find((b) => b.id === updatedStudent.batchId);
     setStudents((prev) =>
-      prev.map((s) =>
-        s.id === updatedStudent.id
-          ? { ...updatedStudent, batchName: batch?.name || s.batchName }
-          : s
-      )
+      prev.map((s) => (s.id === updatedStudent.id ? { ...updatedStudent, batchName: batch?.name || updatedStudent.batchName } : s))
     );
 
     try {
@@ -482,36 +469,73 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   };
 
-  const addTeacher = (teacherData: Omit<User, "id" | "createdAt">) => {
-    const newTeacher: User = {
-      ...teacherData,
-      id: `usr-${Date.now()}`,
-      createdAt: new Date().toISOString().split("T")[0],
-    };
-    setUsers((prev) => [...prev, newTeacher]);
+  const addTeacher = async (teacherData: {
+    name: string;
+    username: string;
+    email?: string;
+    phone?: string;
+    password?: string;
+    assignedBatchIds?: string[];
+    assignedDays?: string[];
+  }): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const res = await fetch("/api/teachers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(teacherData),
+      });
+      const data = await res.json();
+      if (res.ok && data.success && data.data) {
+        setUsers((prev) => [...prev, data.data]);
+        return { success: true };
+      } else {
+        return { success: false, error: data.error || "শিক্ষক যুক্ত করতে সমস্যা হয়েছে" };
+      }
+    } catch (e: any) {
+      return { success: false, error: e.message || "সার্ভার এরর" };
+    }
   };
 
-  const updateTeacher = async (updatedTeacher: User): Promise<boolean> => {
+  const updateTeacher = async (
+    updatedTeacher: User & { password?: string }
+  ): Promise<boolean> => {
     setUsers((prev) =>
       prev.map((u) => (u.id === updatedTeacher.id ? updatedTeacher : u))
     );
 
     try {
-      await fetch(`/api/teachers/${updatedTeacher.id}`, {
+      const res = await fetch(`/api/teachers/${updatedTeacher.id}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: updatedTeacher.name,
           phone: updatedTeacher.phone,
           email: updatedTeacher.email,
+          password: updatedTeacher.password,
           assignedBatchIds: updatedTeacher.assignedBatchIds,
           assignedDays: updatedTeacher.assignedDays,
           isActive: updatedTeacher.isActive,
         }),
       });
-      return true;
+      const data = await res.json();
+      if (res.ok && data.success) {
+        return true;
+      }
+      return false;
     } catch (e) {
       console.error("Update teacher backend error:", e);
+      return false;
+    }
+  };
+
+  const deleteTeacher = async (teacherId: string): Promise<boolean> => {
+    setUsers((prev) => prev.filter((u) => u.id !== teacherId));
+    try {
+      const res = await fetch(`/api/teachers/${teacherId}`, { method: "DELETE" });
+      const data = await res.json();
+      return res.ok && data.success;
+    } catch (e) {
+      console.error("Delete teacher error:", e);
       return false;
     }
   };
@@ -582,6 +606,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         classLogs,
         isLoading,
         isResetting,
+        login,
         loginAs,
         logout,
         getStudentSummary,
@@ -597,6 +622,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         deleteStudent,
         addTeacher,
         updateTeacher,
+        deleteTeacher,
         addBatch,
         updateBatch,
         toggleBatchStatus,

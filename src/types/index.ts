@@ -109,7 +109,7 @@ export interface AttendanceRecord {
   id: string;
   studentId: string;
   batchId: string;
-  teacherId: string;
+  teacherId?: string;
   substituteTeacherName?: string;
   date: string; // YYYY-MM-DD
   dayName: string; // Sat, Mon, etc.
@@ -122,7 +122,7 @@ export interface AttendanceRecord {
 export interface ClassLog {
   id: string;
   batchId: string;
-  teacherId: string;
+  teacherId?: string;
   teacherName: string;
   isSubstitute?: boolean;
   date: string;
