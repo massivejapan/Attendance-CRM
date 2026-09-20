@@ -27,13 +27,16 @@ export async function POST(req: Request) {
 
     // Verify valid user for foreign key
     let validTeacherId: string | null = null;
+    let effectiveTeacherName = teacherName || "Teacher";
+
     if (teacherId) {
-      const userExists = await prisma.user.findUnique({
+      const userObj = await prisma.user.findUnique({
         where: { id: teacherId },
-        select: { id: true },
+        select: { id: true, name: true },
       });
-      if (userExists) {
-        validTeacherId = userExists.id;
+      if (userObj) {
+        validTeacherId = userObj.id;
+        if (!teacherName) effectiveTeacherName = userObj.name;
       }
     }
 
@@ -50,90 +53,91 @@ export async function POST(req: Request) {
 
     const totalStudents = records.length;
 
-    // Prisma Transaction for atomicity
-    await prisma.$transaction(async (tx) => {
-      // 1. Upsert attendance records
-      for (const rec of records) {
-        // Resolve student ID
-        let resolvedStudentId = rec.studentId;
-        const studentObj = await tx.student.findFirst({
-          where: {
-            OR: [{ id: rec.studentId }, { studentIdCode: rec.studentId }],
-          },
-          select: { id: true },
-        });
+    // Fetch batch students once for fast ID resolution
+    const batchStudents = await prisma.student.findMany({
+      where: {
+        OR: [{ batchId }, { id: { in: records.map((r) => r.studentId) } }],
+      },
+      select: { id: true, studentIdCode: true },
+    });
 
-        if (!studentObj) continue;
-        resolvedStudentId = studentObj.id;
+    const studentIdMap = new Map<string, string>();
+    batchStudents.forEach((s) => {
+      studentIdMap.set(s.id, s.id);
+      studentIdMap.set(s.studentIdCode, s.id);
+    });
 
-        await tx.attendance.upsert({
-          where: {
-            studentId_batchId_date: {
-              studentId: resolvedStudentId,
-              batchId,
-              date,
-            },
-          },
-          update: {
-            status: rec.status,
-            note: rec.note || null,
-            dayName: dayName || null,
-            teacherId: validTeacherId,
-            substituteTeacherName: isSubstitute ? teacherName : null,
-          },
-          create: {
+    // 1. Process attendance records directly without pgbouncer transaction conflicts
+    for (const rec of records) {
+      const resolvedStudentId = studentIdMap.get(rec.studentId) || rec.studentId;
+
+      await prisma.attendance.upsert({
+        where: {
+          studentId_batchId_date: {
             studentId: resolvedStudentId,
             batchId,
             date,
-            dayName: dayName || null,
-            status: rec.status,
-            note: rec.note || null,
-            teacherId: validTeacherId,
-            substituteTeacherName: isSubstitute ? teacherName : null,
           },
-        });
-      }
+        },
+        update: {
+          status: rec.status,
+          note: rec.note || null,
+          dayName: dayName || null,
+          teacherId: validTeacherId,
+          substituteTeacherName: isSubstitute ? effectiveTeacherName : null,
+        },
+        create: {
+          studentId: resolvedStudentId,
+          batchId,
+          date,
+          dayName: dayName || null,
+          status: rec.status,
+          note: rec.note || null,
+          teacherId: validTeacherId,
+          substituteTeacherName: isSubstitute ? effectiveTeacherName : null,
+        },
+      });
+    }
 
-      // 2. Upsert ClassLog if topicCovered is provided
-      if (topicCovered) {
-        await tx.classLog.upsert({
-          where: {
-            batchId_date: {
-              batchId,
-              date,
-            },
-          },
-          update: {
-            teacherId: validTeacherId,
-            teacherName: teacherName || "Teacher",
-            isSubstitute: Boolean(isSubstitute),
-            dayName: dayName || null,
-            topicCovered,
-            homework: homework || null,
-            presentCount,
-            absentCount,
-            excusedCount,
-            totalStudents,
-            submittedAt: new Date(),
-          },
-          create: {
+    // 2. Upsert ClassLog if topicCovered is provided
+    if (topicCovered) {
+      await prisma.classLog.upsert({
+        where: {
+          batchId_date: {
             batchId,
-            teacherId: validTeacherId,
-            teacherName: teacherName || "Teacher",
-            isSubstitute: Boolean(isSubstitute),
             date,
-            dayName: dayName || null,
-            topicCovered,
-            homework: homework || null,
-            presentCount,
-            absentCount,
-            excusedCount,
-            totalStudents,
-            submittedAt: new Date(),
           },
-        });
-      }
-    });
+        },
+        update: {
+          teacherId: validTeacherId,
+          teacherName: effectiveTeacherName,
+          isSubstitute: Boolean(isSubstitute),
+          dayName: dayName || null,
+          topicCovered,
+          homework: homework || null,
+          presentCount,
+          absentCount,
+          excusedCount,
+          totalStudents,
+          submittedAt: new Date(),
+        },
+        create: {
+          batchId,
+          teacherId: validTeacherId,
+          teacherName: effectiveTeacherName,
+          isSubstitute: Boolean(isSubstitute),
+          date,
+          dayName: dayName || null,
+          topicCovered,
+          homework: homework || null,
+          presentCount,
+          absentCount,
+          excusedCount,
+          totalStudents,
+          submittedAt: new Date(),
+        },
+      });
+    }
 
     return NextResponse.json({
       success: true,
@@ -162,14 +166,13 @@ export async function DELETE(req: Request) {
       );
     }
 
-    await prisma.$transaction([
-      prisma.attendance.deleteMany({
-        where: { batchId, date },
-      }),
-      prisma.classLog.deleteMany({
-        where: { batchId, date },
-      }),
-    ]);
+    await prisma.attendance.deleteMany({
+      where: { batchId, date },
+    });
+
+    await prisma.classLog.deleteMany({
+      where: { batchId, date },
+    });
 
     return NextResponse.json({
       success: true,
@@ -183,4 +186,3 @@ export async function DELETE(req: Request) {
     );
   }
 }
-
