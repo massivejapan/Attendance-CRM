@@ -9,10 +9,7 @@ import {
   Eye,
   EyeOff,
   LogIn,
-  ShieldCheck,
-  CheckCircle2,
   AlertCircle,
-  Sparkles,
 } from "lucide-react";
 
 export const LoginPage: React.FC = () => {
@@ -38,12 +35,6 @@ export const LoginPage: React.FC = () => {
       setError(res.error || "ইউজারনেম বা পাসওয়ার্ড ভুল হয়েছে!");
       setIsLoading(false);
     }
-  };
-
-  const handleQuickLogin = (u: string, p: string) => {
-    setUsername(u);
-    setPassword(p);
-    setError(null);
   };
 
   return (
@@ -95,7 +86,7 @@ export const LoginPage: React.FC = () => {
                   type="text"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  placeholder="যেমন: admin বা teacher username"
+                  placeholder="ইউজারনেম বা ইমেইল লিখুন"
                   required
                   className="w-full pl-9 pr-4 py-2.5 text-sm rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-[#662C90] focus:ring-2 focus:ring-[#662C90]/10 outline-none font-medium text-slate-800 transition-all"
                 />
@@ -150,63 +141,6 @@ export const LoginPage: React.FC = () => {
               )}
             </button>
           </form>
-
-          {/* Quick Demo Selector for Admin Testing */}
-          <div className="mt-6 pt-5 border-t border-slate-100">
-            <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
-              <Sparkles className="w-3.5 h-3.5 text-[#662C90]" />
-              টেস্টিং / ডেমো দ্রুত সিলেক্টর (Quick Login):
-            </p>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => handleQuickLogin("admin", "admin123")}
-                className="p-2.5 rounded-xl border border-purple-200 bg-purple-50/60 hover:bg-purple-100/70 text-left transition-all group"
-              >
-                <div className="flex items-center gap-1.5">
-                  <ShieldCheck className="w-3.5 h-3.5 text-[#662C90]" />
-                  <span className="text-xs font-black text-[#662C90]">
-                    Super Admin
-                  </span>
-                </div>
-                <p className="text-[10px] text-slate-500 font-semibold mt-0.5">
-                  User: <code className="text-purple-900 font-mono">admin</code> | Pass: <code className="text-purple-900 font-mono">admin123</code>
-                </p>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleQuickLogin("mam", "teacher123")}
-                className="p-2.5 rounded-xl border border-orange-200 bg-orange-50/60 hover:bg-orange-100/70 text-left transition-all group"
-              >
-                <div className="flex items-center gap-1.5">
-                  <GraduationCap className="w-3.5 h-3.5 text-[#F26622]" />
-                  <span className="text-xs font-black text-[#F26622]">
-                    MAM Sir (Teacher)
-                  </span>
-                </div>
-                <p className="text-[10px] text-slate-500 font-semibold mt-0.5">
-                  User: <code className="text-orange-900 font-mono">mam</code> | Pass: <code className="text-orange-900 font-mono">teacher123</code>
-                </p>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleQuickLogin("shakil", "teacher123")}
-                className="p-2 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-left text-[11px] text-slate-700 font-bold transition-all"
-              >
-                Shakil Sir (<code className="font-mono text-[10px]">shakil</code>)
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleQuickLogin("nazrul", "teacher123")}
-                className="p-2 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-left text-[11px] text-slate-700 font-bold transition-all"
-              >
-                Nazrul Sir (<code className="font-mono text-[10px]">nazrul</code>)
-              </button>
-            </div>
-          </div>
         </div>
 
         {/* Security & Support Note */}
