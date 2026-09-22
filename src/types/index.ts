@@ -160,3 +160,23 @@ export interface BatchSummaryStats {
   todayTopic?: string;
   avgAttendanceRate: number;
 }
+
+export type CallStatus = "CONNECTED" | "NO_ANSWER" | "BUSY" | "WRONG_NUMBER";
+export type GuardianResponse = "WILL_RESUME" | "BATCH_CHANGE" | "DROPPED" | "NEEDS_TIME" | "OTHER";
+export type FollowUpResolution = "PENDING" | "RESOLVED" | "DROPPED";
+
+export interface FollowUpCallLog {
+  id: string;
+  studentId: string;
+  studentName: string;
+  studentCode: string;
+  batchName?: string;
+  guardianNumber?: string;
+  calledBy: string;
+  calledAt: string; // ISO string
+  callStatus: CallStatus;
+  guardianResponse: GuardianResponse;
+  notes: string;
+  resolutionStatus: FollowUpResolution;
+}
+

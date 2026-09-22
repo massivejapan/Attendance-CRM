@@ -19,7 +19,10 @@ import {
   Sparkles,
   Users,
   RotateCcw,
+  Phone,
+  MessageSquare,
 } from "lucide-react";
+import { openWhatsApp, getWhatsAppAbsentNotice } from "@/lib/utils";
 
 interface AttendanceSheetProps {
   onSelectStudent?: (studentId: string) => void;
@@ -642,16 +645,41 @@ export const AttendanceSheet: React.FC<AttendanceSheetProps> = ({
                               {student.name}
                             </span>
                           </div>
-                          <div className="flex items-center gap-2 mt-0.5">
+                          <div className="flex flex-wrap items-center gap-2 mt-1">
                             {summary && (
                               <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded ${summary.attendancePercentage < 75 ? "bg-rose-50 text-rose-700 border border-rose-200" : "bg-emerald-50 text-emerald-700"}`}>
                                 মোট উপস্থিতি: {summary.presentCount} দিন ({summary.attendancePercentage}%)
                               </span>
                             )}
                             {student.guardianNumber && (
-                              <span className="text-[10px] text-slate-400">
-                                📞 {student.guardianNumber}
-                              </span>
+                              <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                                <a
+                                  href={`tel:${student.guardianNumber}`}
+                                  className="text-[10px] font-bold text-slate-500 hover:text-slate-800 flex items-center gap-0.5 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-200"
+                                  title="অভিভাবককে কল করুন"
+                                >
+                                  <Phone className="w-2.5 h-2.5 text-emerald-600" />
+                                  {student.guardianNumber}
+                                </a>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    openWhatsApp(
+                                      student.guardianNumber,
+                                      getWhatsAppAbsentNotice(
+                                        student.name,
+                                        currentBatch?.name,
+                                        totalMissedWithToday
+                                      )
+                                    )
+                                  }
+                                  className="text-[10px] font-bold text-emerald-700 hover:bg-emerald-100 flex items-center gap-0.5 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-300 shadow-2xs"
+                                  title="হোয়াটসঅ্যাপে মেসেজ পাঠান"
+                                >
+                                  <MessageSquare className="w-2.5 h-2.5 text-emerald-600" />
+                                  WhatsApp
+                                </button>
+                              </div>
                             )}
                           </div>
                         </button>

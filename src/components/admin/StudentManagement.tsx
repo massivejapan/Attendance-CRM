@@ -13,7 +13,9 @@ import {
   CheckCircle2,
   AlertTriangle,
   UserCheck,
+  MessageSquare,
 } from "lucide-react";
+import { openWhatsApp, getWhatsAppGeneralMsg } from "@/lib/utils";
 
 interface StudentManagementProps {
   onSelectStudent: (studentId: string) => void;
@@ -283,13 +285,28 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
 
                       <td className="py-3.5 px-4">
                         {student.guardianNumber ? (
-                          <a
-                            href={`tel:${student.guardianNumber}`}
-                            className="text-slate-700 hover:text-[#F26622] font-mono text-[11px] font-bold flex items-center gap-1"
-                          >
-                            <Phone className="w-3 h-3 text-slate-400" />
-                            {student.guardianNumber}
-                          </a>
+                          <div className="flex items-center gap-1.5">
+                            <a
+                              href={`tel:${student.guardianNumber}`}
+                              className="text-slate-700 hover:text-[#F26622] font-mono text-[11px] font-bold flex items-center gap-1"
+                            >
+                              <Phone className="w-3 h-3 text-slate-400" />
+                              {student.guardianNumber}
+                            </a>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                openWhatsApp(
+                                  student.guardianNumber,
+                                  getWhatsAppGeneralMsg(student.name, student.batchName)
+                                )
+                              }
+                              className="p-1 rounded bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-300 shadow-2xs"
+                              title="অভিভাবককে WhatsApp বার্তা পাঠান"
+                            >
+                              <MessageSquare className="w-3 h-3 text-emerald-600" />
+                            </button>
+                          </div>
                         ) : (
                           <span className="text-slate-400">-</span>
                         )}

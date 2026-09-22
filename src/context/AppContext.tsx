@@ -10,6 +10,7 @@ import {
   StudentAttendanceSummary,
   AttendanceStatus,
   StudentMilestone,
+  FollowUpCallLog,
 } from "@/types";
 import {
   initialUsers,
@@ -75,6 +76,10 @@ interface AppContextType {
   toggleBatchStatus: (batchId: string, newStatus: "RUNNING" | "COMPLETED") => Promise<boolean>;
   resetDatabaseToSeed: () => Promise<{ success: boolean; message: string }>;
   refreshData: () => Promise<void>;
+  returnToSuperAdmin: () => void;
+  followUpLogs: FollowUpCallLog[];
+  addFollowUpLog: (log: Omit<FollowUpCallLog, "id" | "calledAt">) => void;
+  resolveIrregularStudent: (studentId: string, resolution: "RESOLVED" | "DROPPED", note?: string) => Promise<boolean>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -87,9 +92,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
   const [students, setStudents] = useState<Student[]>(initialStudents);
   const [attendances, setAttendances] = useState<AttendanceRecord[]>(initialAttendanceRecords);
   const [classLogs, setClassLogs] = useState<ClassLog[]>(initialClassLogs);
+  const [followUpLogs, setFollowUpLogs] = useState<FollowUpCallLog[]>([]);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isResetting, setIsResetting] = useState<boolean>(false);
+
+  // Load saved call logs from localStorage
+  useEffect(() => {
+    try {
+      const savedLogs = localStorage.getItem("mjli_call_logs");
+      if (savedLogs) {
+        setFollowUpLogs(JSON.parse(savedLogs));
+      }
+    } catch (e) {
+      console.warn("Could not load saved call logs:", e);
+    }
+  }, []);
 
   // Restore session from localStorage on initial render
   useEffect(() => {
@@ -636,6 +654,75 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   };
 
+  const returnToSuperAdmin = () => {
+    const adminUser = users.find((u) => u.role === "SUPER_ADMIN" && u.username === "sadif609") ||
+      users.find((u) => u.role === "SUPER_ADMIN");
+    if (adminUser) {
+      setCurrentUser(adminUser);
+      localStorage.setItem("mjli_user", JSON.stringify(adminUser));
+    }
+  };
+
+  const addFollowUpLog = (logData: Omit<FollowUpCallLog, "id" | "calledAt">) => {
+    const newLog: FollowUpCallLog = {
+      ...logData,
+      id: `call-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      calledAt: new Date().toISOString(),
+    };
+
+    setFollowUpLogs((prev) => {
+      const updated = [newLog, ...prev.filter((l) => !(l.studentId === logData.studentId && l.resolutionStatus !== "PENDING"))];
+      try {
+        localStorage.setItem("mjli_call_logs", JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
+  };
+
+  const resolveIrregularStudent = async (
+    studentId: string,
+    resolution: "RESOLVED" | "DROPPED",
+    note?: string
+  ): Promise<boolean> => {
+    const student = students.find((s) => s.id === studentId);
+    if (!student) return false;
+
+    // If marked as DROPPED, update student status to INACTIVE / DROPPED
+    if (resolution === "DROPPED") {
+      await updateStudent({
+        ...student,
+        status: "INACTIVE",
+        refInfo: note ? `ড্রপআউট নোট: ${note}` : student.refInfo,
+      });
+    }
+
+    // Add resolution call log entry
+    const newLog: FollowUpCallLog = {
+      id: `call-res-${Date.now()}`,
+      studentId: student.id,
+      studentName: student.name,
+      studentCode: student.studentIdCode,
+      batchName: student.batchName,
+      guardianNumber: student.guardianNumber,
+      calledBy: currentUser?.name || "Admin",
+      calledAt: new Date().toISOString(),
+      callStatus: "CONNECTED",
+      guardianResponse: resolution === "DROPPED" ? "DROPPED" : "WILL_RESUME",
+      notes: note || (resolution === "DROPPED" ? "কোর্স বাতিল / ড্রপআউট হিসেবে চিহ্নিত করা হয়েছে" : "অভিভাবকের সাথে কথা সম্পন্ন, ক্লাসে নিয়মিত উপস্থিত থাকবেন"),
+      resolutionStatus: resolution,
+    };
+
+    setFollowUpLogs((prev) => {
+      const updated = [newLog, ...prev.filter((l) => l.studentId !== studentId)];
+      try {
+        localStorage.setItem("mjli_call_logs", JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
+
+    return true;
+  };
+
   return (
     <AppContext.Provider
       value={{
@@ -671,6 +758,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         toggleBatchStatus,
         resetDatabaseToSeed,
         refreshData,
+        returnToSuperAdmin,
+        followUpLogs,
+        addFollowUpLog,
+        resolveIrregularStudent,
       }}
     >
       {children}

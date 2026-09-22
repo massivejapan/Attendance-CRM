@@ -16,6 +16,11 @@ import {
   Save,
   Edit,
 } from "lucide-react";
+import {
+  openWhatsApp,
+  getWhatsAppAbsentNotice,
+  getWhatsAppGeneralMsg,
+} from "@/lib/utils";
 
 interface StudentProfileDrawerProps {
   studentId: string | null;
@@ -177,23 +182,60 @@ export const StudentProfileDrawer: React.FC<StudentProfileDrawerProps> = ({
         {/* Quick Actions Bar */}
         <div className="p-5 border-b border-slate-100 bg-slate-50/50 flex flex-wrap gap-2 text-xs">
           {student.guardianNumber && (
-            <a
-              href={`tel:${student.guardianNumber}`}
-              className="px-3.5 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white font-bold flex items-center gap-1.5 shadow-sm transition-colors"
-            >
-              <Phone className="w-3.5 h-3.5" />
-              অভিভাবককে কল ({student.guardianNumber})
-            </a>
+            <>
+              <a
+                href={`tel:${student.guardianNumber}`}
+                className="px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold flex items-center gap-1.5 shadow-sm transition-colors"
+              >
+                <Phone className="w-3.5 h-3.5" />
+                অভিভাবককে কল ({student.guardianNumber})
+              </a>
+
+              <button
+                type="button"
+                onClick={() =>
+                  openWhatsApp(
+                    student.guardianNumber,
+                    summary && summary.consecutiveAbsents > 0
+                      ? getWhatsAppAbsentNotice(
+                          student.name,
+                          student.batchName,
+                          summary.consecutiveAbsents
+                        )
+                      : getWhatsAppGeneralMsg(student.name, student.batchName)
+                  )
+                }
+                className="px-3.5 py-2 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold flex items-center gap-1.5 border border-emerald-300 shadow-2xs transition-colors"
+              >
+                <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />
+                অভিভাবককে WhatsApp
+              </button>
+            </>
           )}
 
           {student.mobileNumber && (
-            <a
-              href={`tel:${student.mobileNumber}`}
-              className="px-3 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold flex items-center gap-1.5 transition-colors border border-slate-200"
-            >
-              <Phone className="w-3.5 h-3.5" />
-              শিক্ষার্থীকে কল
-            </a>
+            <>
+              <a
+                href={`tel:${student.mobileNumber}`}
+                className="px-3 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold flex items-center gap-1.5 transition-colors border border-slate-200"
+              >
+                <Phone className="w-3.5 h-3.5" />
+                শিক্ষার্থীকে কল
+              </a>
+              <button
+                type="button"
+                onClick={() =>
+                  openWhatsApp(
+                    student.mobileNumber,
+                    getWhatsAppGeneralMsg(student.name, student.batchName)
+                  )
+                }
+                className="px-3 py-2 rounded-lg bg-slate-100 hover:bg-emerald-50 text-slate-700 hover:text-emerald-800 font-bold flex items-center gap-1.5 transition-colors border border-slate-200"
+              >
+                <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />
+                শিক্ষার্থী WhatsApp
+              </button>
+            </>
           )}
 
           <button
