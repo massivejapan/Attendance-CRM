@@ -147,7 +147,7 @@ export const StudentProfileDrawer: React.FC<StudentProfileDrawerProps> = ({
           ...current,
           isSubmitted: newChecked,
           receivedDate: newChecked ? current?.receivedDate || today : undefined,
-          receivedBy: newChecked ? current?.receivedBy || "" : undefined,
+          receivedBy: newChecked ? current?.receivedBy || currentUser?.name || currentUser?.username || "" : undefined,
           status: newChecked ? (current?.status === "CORRECTION_NEEDED" ? "CORRECTION_NEEDED" : "OK") : "PENDING",
           updatedAt: new Date().toISOString(),
         },
