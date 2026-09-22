@@ -496,7 +496,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                 batches.map((b) => (
                   <div
                     key={b.id}
-                    className="py-3 flex items-center justify-between"
+                    className="py-3 flex items-center justify-between hover:bg-slate-50 px-2 rounded-lg"
                   >
                     <div>
                       <p className="font-bold text-slate-900">{b.name}</p>
@@ -504,9 +504,20 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                         {b.scheduleDays} • {b.timeSlot}
                       </p>
                     </div>
-                    <span className="font-bold px-2 py-0.5 rounded text-[11px] bg-slate-100 text-slate-700">
-                      {b.status === "RUNNING" ? "চলমান" : "সম্পন্ন"}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold px-2 py-0.5 rounded text-[11px] bg-slate-100 text-slate-700">
+                        {b.status === "RUNNING" ? "চলমান" : "সম্পন্ন"}
+                      </span>
+                      <button
+                        onClick={() => {
+                          setActiveBatchModal(b);
+                          setDrilldownType("BATCH_DETAIL");
+                        }}
+                        className="px-2 py-1 rounded bg-[#662C90] text-white font-bold text-[11px]"
+                      >
+                        বিস্তারিত
+                      </button>
+                    </div>
                   </div>
                 ))}
 
@@ -519,7 +530,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                     <div>
                       <p className="font-bold text-slate-900">{st.name}</p>
                       <p className="text-[11px] text-slate-500">
-                        কোম্পানি: {st.milestone?.interviewCompany} • তারিখ: {st.milestone?.interviewDate}
+                        কোম্পানি: {st.milestone?.interviewCompany || "নির্ধারিত নেই"} • তারিখ: {st.milestone?.interviewDate || st.interviewDate || "শীঘ্রই"}
                       </p>
                     </div>
                     <button
@@ -572,7 +583,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                 students.map((st) => (
                   <div
                     key={st.id}
-                    className="py-2.5 flex items-center justify-between"
+                    className="py-2.5 flex items-center justify-between hover:bg-slate-50 px-2 rounded-lg"
                   >
                     <div>
                       <p className="font-bold text-slate-900">{st.name}</p>
@@ -585,12 +596,170 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                         setDrilldownType(null);
                         onSelectStudent(st.id);
                       }}
-                      className="text-[#662C90] font-bold"
+                      className="text-[#662C90] font-bold hover:underline"
                     >
                       প্রোফাইল →
                     </button>
                   </div>
                 ))}
+
+              {drilldownType === "BATCH_DETAIL" && activeBatchModal && (
+                <div className="space-y-4 pt-2">
+                  {/* Batch Summary Header */}
+                  <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <span className="text-xs font-bold text-slate-800">
+                          {activeBatchModal.scheduleDays || "শিডিউল নির্ধারিত নেই"} • {activeBatchModal.timeSlot || "সময় নির্ধারিত নেই"}
+                        </span>
+                        <p className="text-[11px] text-slate-500">
+                          কোর্স কোড / ক্যাম্পাস: {activeBatchModal.code || "প্রধান ক্যাম্পাস"}
+                        </p>
+                      </div>
+                      <span
+                        className={`font-bold px-2.5 py-1 rounded text-xs ${
+                          activeBatchModal.status === "RUNNING"
+                            ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                            : "bg-slate-200 text-slate-700"
+                        }`}
+                      >
+                        {activeBatchModal.status === "RUNNING" ? "চলমান ব্যাচ" : "সম্পন্ন"}
+                      </span>
+                    </div>
+
+                    {/* Progress Info */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-slate-200/60 text-[11px]">
+                      <div>
+                        <span className="text-slate-400 block">মোট শিক্ষার্থী:</span>
+                        <strong className="text-slate-800 font-bold">
+                          {students.filter((s) => s.batchId === activeBatchModal.id && s.status === "ACTIVE").length} জন
+                        </strong>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block">ক্লাস সম্পন্ন:</span>
+                        <strong className="text-slate-800 font-bold">
+                          {activeBatchModal.completedClasses || 0} / {activeBatchModal.targetTotalClasses || 72}
+                        </strong>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block">সম্ভাব্য শেষ:</span>
+                        <strong className="text-slate-800 font-bold">
+                          {activeBatchModal.estimatedEndDate || "N/A"}
+                        </strong>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block">বাকি সময়:</span>
+                        <strong className="text-[#F26622] font-bold">
+                          {activeBatchModal.daysRemaining !== undefined ? `${activeBatchModal.daysRemaining} দিন` : "N/A"}
+                        </strong>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Assigned Teachers */}
+                  <div className="flex items-center justify-between text-xs bg-purple-50/50 p-2.5 rounded-lg border border-purple-100">
+                    <span className="font-semibold text-slate-700">নিয়োজিত শিক্ষক:</span>
+                    <span className="font-bold text-[#662C90]">
+                      {users
+                        .filter(
+                          (u) =>
+                            u.role === "TEACHER" &&
+                            u.assignedBatchIds?.includes(activeBatchModal.id)
+                        )
+                        .map((u) => u.name)
+                        .join(", ") || "কোনো শিক্ষক নিযুক্ত নেই"}
+                    </span>
+                  </div>
+
+                  {/* Students in Batch */}
+                  <div>
+                    <h4 className="font-bold text-slate-800 text-xs mb-2 flex items-center justify-between">
+                      <span>ব্যাচের শিক্ষার্থী তালিকা</span>
+                      <span className="text-slate-400 text-[11px] font-normal">
+                        ({students.filter((s) => s.batchId === activeBatchModal.id).length} জন)
+                      </span>
+                    </h4>
+                    <div className="max-h-60 overflow-y-auto divide-y divide-slate-100 border border-slate-100 rounded-xl">
+                      {students
+                        .filter((s) => s.batchId === activeBatchModal.id)
+                        .map((st) => {
+                          const summary = getStudentSummary(st.id);
+                          return (
+                            <div
+                              key={st.id}
+                              className="p-2.5 flex items-center justify-between hover:bg-slate-50 transition-colors"
+                            >
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <span className="font-bold text-slate-900">{st.name}</span>
+                                  <span className="text-[10px] font-mono text-slate-400">
+                                    #{st.studentIdCode}
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-3 text-[11px] text-slate-500 mt-0.5">
+                                  <span>উপস্থিতি: <strong className={summary && summary.attendancePercentage < 75 ? "text-rose-600" : "text-emerald-700"}>{summary ? `${summary.attendancePercentage}%` : "100%"}</strong></span>
+                                  {summary && summary.consecutiveAbsents > 0 && (
+                                    <span className="text-rose-600 font-semibold">টানা অনুপস্থিত: {summary.consecutiveAbsents} দিন</span>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                {st.guardianNumber && (
+                                  <a
+                                    href={`tel:${st.guardianNumber}`}
+                                    className="p-1 rounded bg-slate-100 text-slate-600 hover:text-emerald-700"
+                                    title="কল অভিভাবক"
+                                  >
+                                    <Phone className="w-3.5 h-3.5" />
+                                  </a>
+                                )}
+                                <button
+                                  onClick={() => {
+                                    setDrilldownType(null);
+                                    setActiveBatchModal(null);
+                                    onSelectStudent(st.id);
+                                  }}
+                                  className="px-2.5 py-1 rounded bg-[#662C90] text-white font-bold text-[11px] hover:bg-[#522375]"
+                                >
+                                  প্রোফাইল
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      {students.filter((s) => s.batchId === activeBatchModal.id).length === 0 && (
+                        <p className="p-4 text-center text-slate-400 text-xs">
+                          এই ব্যাচে কোনো শিক্ষার্থী যুক্ত নেই
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-100">
+                    <button
+                      onClick={() => {
+                        setDrilldownType(null);
+                        setActiveBatchModal(null);
+                        onNavigateToTab("batches");
+                      }}
+                      className="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-700 font-bold text-xs hover:bg-slate-50"
+                    >
+                      ব্যাচ ম্যানেজমেন্টে যান
+                    </button>
+                    <button
+                      onClick={() => {
+                        setDrilldownType(null);
+                        setActiveBatchModal(null);
+                        onNavigateToTab("attendance");
+                      }}
+                      className="px-3 py-1.5 rounded-lg bg-[#F26622] text-white font-bold text-xs hover:bg-[#d85618]"
+                    >
+                      হাজিরা শিট খুলুন →
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>

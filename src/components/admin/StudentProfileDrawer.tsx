@@ -43,6 +43,7 @@ export const StudentProfileDrawer: React.FC<StudentProfileDrawerProps> = ({
   const [targetBatchId, setTargetBatchId] = useState("");
   const [shiftReason, setShiftReason] = useState("");
   const [isEditingMilestone, setIsEditingMilestone] = useState(false);
+  const [showCertModal, setShowCertModal] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
 
   const [milestoneStage, setMilestoneStage] = useState<MilestoneStage>("LANGUAGE_COURSE");
@@ -194,6 +195,15 @@ export const StudentProfileDrawer: React.FC<StudentProfileDrawerProps> = ({
               শিক্ষার্থীকে কল
             </a>
           )}
+
+          <button
+            type="button"
+            onClick={() => setShowCertModal(true)}
+            className="px-3 py-2 rounded-lg bg-[#FFF4EE] text-[#F26622] hover:bg-[#FED7AA]/40 font-bold flex items-center gap-1.5 transition-colors border border-[#FED7AA]"
+          >
+            <GraduationCap className="w-3.5 h-3.5" />
+            অফিসিয়াল হাজিরা সনদপত্র (PDF)
+          </button>
 
           <button
             type="button"
@@ -660,6 +670,128 @@ export const StudentProfileDrawer: React.FC<StudentProfileDrawerProps> = ({
           </div>
         )}
       </div>
+
+      {/* Official Japanese Embassy Standard Attendance Certificate Modal */}
+      {showCertModal && (
+        <div className="fixed inset-0 z-60 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-2xl w-full p-8 shadow-2xl border border-slate-200 space-y-6 animate-in fade-in zoom-in-95 my-8">
+            {/* Print Friendly Header */}
+            <div className="flex items-center justify-between border-b border-slate-200 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-[#662C90] text-white flex items-center justify-center font-black text-xl shadow-sm">
+                  MJLI
+                </div>
+                <div>
+                  <h3 className="font-black text-slate-900 text-base">
+                    MASSIVE JAPAN LANGUAGE INSTITUTE
+                  </h3>
+                  <p className="text-[11px] text-slate-500 font-semibold">
+                    日本語研修センター • JAPANESE LANGUAGE TRAINING CENTER
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="px-4 py-2 rounded-xl bg-[#F26622] hover:bg-[#D95314] text-white font-extrabold text-xs shadow-sm flex items-center gap-1.5"
+                >
+                  🖨️ প্রিন্ট / PDF সংরক্ষণ
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowCertModal(false)}
+                  className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-sm"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            {/* Certificate Title */}
+            <div className="text-center py-2 space-y-1">
+              <h2 className="text-xl font-black text-slate-900 uppercase tracking-wide border-b-2 border-slate-900 inline-block pb-1">
+                ATTENDANCE CERTIFICATE / 出席証明書
+              </h2>
+              <p className="text-xs text-slate-500">
+                Official Course Attendance & Career Progression Record
+              </p>
+            </div>
+
+            {/* Student Info Box */}
+            <div className="grid grid-cols-2 gap-4 p-4 rounded-2xl bg-slate-50 border border-slate-200 text-xs">
+              <div>
+                <span className="text-slate-400 block text-[10px] uppercase font-bold">Student Name</span>
+                <strong className="text-slate-900 text-sm">{student.name}</strong>
+              </div>
+              <div>
+                <span className="text-slate-400 block text-[10px] uppercase font-bold">Student ID Code</span>
+                <strong className="font-mono text-slate-900 text-sm">#{student.studentIdCode}</strong>
+              </div>
+              <div>
+                <span className="text-slate-400 block text-[10px] uppercase font-bold">Assigned Batch</span>
+                <strong className="text-slate-800">{student.batchName || "N/A"}</strong>
+              </div>
+              <div>
+                <span className="text-slate-400 block text-[10px] uppercase font-bold">Contact Number</span>
+                <strong className="text-slate-800">{student.mobileNumber || "N/A"}</strong>
+              </div>
+            </div>
+
+            {/* Attendance Performance Grid */}
+            <div className="grid grid-cols-4 gap-3 text-center">
+              <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200">
+                <span className="text-[10px] font-bold text-slate-500 block uppercase">Total Classes</span>
+                <span className="text-lg font-black text-slate-800">{summary?.totalClasses || 0}</span>
+              </div>
+              <div className="p-3 rounded-2xl bg-emerald-50 border border-emerald-200">
+                <span className="text-[10px] font-bold text-emerald-700 block uppercase">Present Days</span>
+                <span className="text-lg font-black text-emerald-700">{summary?.presentCount || 0}</span>
+              </div>
+              <div className="p-3 rounded-2xl bg-rose-50 border border-rose-200">
+                <span className="text-[10px] font-bold text-rose-700 block uppercase">Absent Days</span>
+                <span className="text-lg font-black text-rose-700">{summary?.absentCount || 0}</span>
+              </div>
+              <div className="p-3 rounded-2xl bg-purple-50 border border-purple-200">
+                <span className="text-[10px] font-bold text-[#662C90] block uppercase">Attendance Rate</span>
+                <span className="text-lg font-black text-[#662C90]">{summary?.attendancePercentage || 100}%</span>
+              </div>
+            </div>
+
+            {/* Career & Visa Status */}
+            <div className="p-4 rounded-2xl border border-slate-200 space-y-2 text-xs">
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide block">
+                Current Career Milestone & Visa Stage
+              </span>
+              <div className="flex items-center justify-between">
+                <span className="font-extrabold text-[#662C90] text-sm">
+                  {stageLabels[milestoneStage] || "ভাষা কোর্স চলমান"}
+                </span>
+                {student.milestone?.coeNumber && (
+                  <span className="font-mono font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded">
+                    COE: {student.milestone.coeNumber}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Official Verification Signatures */}
+            <div className="pt-8 border-t border-slate-200 grid grid-cols-2 gap-8 text-xs text-center">
+              <div className="space-y-1">
+                <div className="h-10 border-b border-dashed border-slate-300 w-3/4 mx-auto" />
+                <p className="font-bold text-slate-700">Lead Japanese Instructor</p>
+                <p className="text-[10px] text-slate-400">Massive Japan Language Institute</p>
+              </div>
+              <div className="space-y-1">
+                <div className="h-10 border-b border-dashed border-slate-300 w-3/4 mx-auto" />
+                <p className="font-bold text-slate-700">Director / Academic Seal</p>
+                <p className="text-[10px] text-slate-400">Authorized Signature & Stamp</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

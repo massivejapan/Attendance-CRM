@@ -24,6 +24,7 @@ export const ReportsView: React.FC = () => {
   const [syncFeedback, setSyncFeedback] = useState<string | null>(null);
   const [resetFeedback, setResetFeedback] = useState<string | null>(null);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [showBatchPrintModal, setShowBatchPrintModal] = useState(false);
   const [uploadFeedback, setUploadFeedback] = useState<string | null>(null);
 
   const handleExportCSV = () => {
@@ -190,13 +191,21 @@ export const ReportsView: React.FC = () => {
               </select>
             </div>
 
-            <button
-              onClick={handleExportCSV}
-              className="w-full py-3 rounded-2xl font-bold text-xs bg-[#F26622] hover:bg-[#D95314] text-white shadow-sm transition-all flex items-center justify-center gap-2"
-            >
-              <Download className="w-4 h-4" />
-              এক্সেল / CSV রিপোর্ট ডাউনলোড করুন
-            </button>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+              <button
+                onClick={handleExportCSV}
+                className="w-full py-3 rounded-2xl font-bold text-xs bg-[#F26622] hover:bg-[#D95314] text-white shadow-sm transition-all flex items-center justify-center gap-1.5"
+              >
+                <Download className="w-4 h-4" />
+                CSV ডাউনলোড
+              </button>
+              <button
+                onClick={() => setShowBatchPrintModal(true)}
+                className="w-full py-3 rounded-2xl font-bold text-xs bg-[#662C90] hover:bg-[#532376] text-white shadow-sm transition-all flex items-center justify-center gap-1.5"
+              >
+                🖨️ প্রিন্ট / PDF রিপোর্ট
+              </button>
+            </div>
           </div>
         </div>
 
@@ -240,9 +249,71 @@ export const ReportsView: React.FC = () => {
               </div>
             </div>
 
+            <div className="pt-2 border-t border-slate-100 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] text-slate-500 font-bold">
+                  একক গুগল শিটে রিয়েল-টাইম অটো-আপডেট সেটআপ (Apps Script)
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const scriptCode = `function doPost(e) {
+  try {
+    var data = JSON.parse(e.postData.contents);
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sheetName = data.batchName || "Master_Attendance";
+    var sheet = ss.getSheetByName(sheetName);
+    
+    if (!sheet) {
+      sheet = ss.insertSheet(sheetName);
+      sheet.appendRow(["Date", "Day", "Student ID", "Student Name", "Status", "Note", "Teacher", "Topic Covered"]);
+    }
+    
+    if (data.records && Array.isArray(data.records)) {
+      data.records.forEach(function(rec) {
+        sheet.appendRow([
+          data.date || new Date().toISOString().split("T")[0],
+          data.dayName || "",
+          rec.studentIdCode || "",
+          rec.studentName || "",
+          rec.status || "",
+          rec.note || "",
+          data.teacherName || "",
+          data.topicCovered || ""
+        ]);
+      });
+    }
+    
+    return ContentService.createTextOutput(JSON.stringify({ status: "success", message: "Updated in Google Sheet" }))
+      .setMimeType(ContentService.MimeType.JSON);
+  } catch(err) {
+    return ContentService.createTextOutput(JSON.stringify({ status: "error", message: err.toString() }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}`;
+                    navigator.clipboard.writeText(scriptCode);
+                    setSyncFeedback("✓ গুগল অ্যাপস স্ক্রিপ্ট কোড কপি হয়েছে! আপনার শিটের Extensions > Apps Script-এ পেস্ট করুন।");
+                    setTimeout(() => setSyncFeedback(null), 5000);
+                  }}
+                  className="px-3 py-1.5 rounded-xl font-bold text-[11px] bg-[#662C90] text-white hover:bg-[#532376] shadow-2xs transition-all flex items-center gap-1"
+                >
+                  📋 স্ক্রিপ্ট কোড কপি করুন
+                </button>
+              </div>
+
+              <div className="p-3 rounded-2xl bg-purple-50/60 border border-purple-100 text-[11px] text-slate-600 space-y-1">
+                <p className="font-bold text-[#662C90]">📝 গুগল শিটে কানেক্ট করার সহজ ৩ ধাপ:</p>
+                <ol className="list-decimal list-inside space-y-0.5 text-[10.5px]">
+                  <li>আপনার Google Sheet খুলুন এবং মেনু থেকে <strong>Extensions &gt; Apps Script</strong>-এ যান।</li>
+                  <li>উপরের <strong>"স্ক্রিপ্ট কোড কপি করুন"</strong> বাটনে চাপ দিয়ে স্ক্রিপ্ট এডিটরে পেস্ট করুন।</li>
+                  <li>উপরে <strong>Deploy &gt; New Deployment &gt; Web App</strong> সিলেক্ট করে <em>Who has access: Anyone</em> দিয়ে Deploy করুন এবং লিংকটি এখানে পেস্ট করুন।</li>
+                </ol>
+              </div>
+            </div>
+
             <div className="pt-1 flex items-center justify-between">
               <span className="text-[11px] text-slate-400 font-bold">
-                স্ট্যাটাস: অটোমেটিক সিঙ্কিং চালু (Daily 11:59 PM)
+                স্ট্যাটাস: অটোমেটিক সিঙ্কিং চালু
               </span>
               <button
                 type="button"
@@ -253,7 +324,7 @@ export const ReportsView: React.FC = () => {
                 <RefreshCw
                   className={`w-3.5 h-3.5 ${isSyncing ? "animate-spin" : ""}`}
                 />
-                {isSyncing ? "সিঙ্ক হচ্ছে..." : "এখনই সিঙ্ক করুন"}
+                {isSyncing ? "সিঙ্ক হচ্ছে..." : "এখনই টেস্ট সিঙ্ক করুন"}
               </button>
             </div>
           </div>
@@ -378,6 +449,110 @@ export const ReportsView: React.FC = () => {
           </label>
         </div>
       </div>
+      {/* Official Printable Batch Report Modal */}
+      {showBatchPrintModal && (
+        <div className="fixed inset-0 z-60 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-4xl w-full p-8 shadow-2xl border border-slate-200 space-y-6 animate-in fade-in zoom-in-95 my-8 max-h-[90vh] flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-slate-200 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-[#662C90] text-white flex items-center justify-center font-black text-xl shadow-sm">
+                  MJLI
+                </div>
+                <div>
+                  <h3 className="font-black text-slate-900 text-base">
+                    MASSIVE JAPAN LANGUAGE INSTITUTE
+                  </h3>
+                  <p className="text-[11px] text-slate-500 font-semibold">
+                    অফিসিয়াল ব্যাচভিত্তিক উপস্থিতি ও পারফরম্যান্স রিপোর্ট
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="px-4 py-2 rounded-xl bg-[#F26622] hover:bg-[#D95314] text-white font-extrabold text-xs shadow-sm flex items-center gap-1.5"
+                >
+                  🖨️ প্রিন্ট / PDF সংরক্ষণ
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowBatchPrintModal(false)}
+                  className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-sm"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            {/* Sub-header info */}
+            <div className="flex items-center justify-between text-xs bg-slate-50 p-3.5 rounded-2xl border border-slate-200">
+              <div>
+                <span className="text-slate-500">নির্বাচিত ব্যাচ: </span>
+                <strong className="text-slate-900 font-bold">
+                  {selectedBatch === "ALL" ? "সকল ব্যাচ একত্রিত" : batches.find((b) => b.id === selectedBatch)?.name}
+                </strong>
+              </div>
+              <div>
+                <span className="text-slate-500">তারিখ: </span>
+                <strong className="text-slate-900 font-bold">{new Date().toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })}</strong>
+              </div>
+            </div>
+
+            {/* Table */}
+            <div className="overflow-y-auto flex-1 border border-slate-200 rounded-2xl">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 text-slate-600 font-bold uppercase text-[10px] border-b border-slate-200 sticky top-0">
+                  <tr>
+                    <th className="p-3 text-center">নং</th>
+                    <th className="p-3">আইডি ও নাম</th>
+                    <th className="p-3">ব্যাচ</th>
+                    <th className="p-3 text-center">মোট ক্লাস</th>
+                    <th className="p-3 text-center">উপস্থিত</th>
+                    <th className="p-3 text-center">অনুপস্থিত</th>
+                    <th className="p-3 text-center">উপস্থিতি %</th>
+                    <th className="p-3">ক্যারিয়ার স্টেজ</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {(selectedBatch === "ALL" ? students : students.filter((s) => s.batchId === selectedBatch)).map((st, idx) => {
+                    const summary = getStudentSummary(st.id);
+                    return (
+                      <tr key={st.id} className="hover:bg-slate-50">
+                        <td className="p-3 text-center text-slate-400 font-bold">{idx + 1}</td>
+                        <td className="p-3">
+                          <p className="font-bold text-slate-900">{st.name}</p>
+                          <p className="text-[10px] text-slate-400 font-mono">#{st.studentIdCode}</p>
+                        </td>
+                        <td className="p-3 font-semibold text-slate-700">{st.batchName || "N/A"}</td>
+                        <td className="p-3 text-center font-bold text-slate-700">{summary?.totalClasses || 0}</td>
+                        <td className="p-3 text-center font-bold text-emerald-700">{summary?.presentCount || 0}</td>
+                        <td className="p-3 text-center font-bold text-rose-700">{summary?.absentCount || 0}</td>
+                        <td className="p-3 text-center">
+                          <span className={`px-2 py-0.5 rounded font-bold text-[11px] ${summary && summary.attendancePercentage < 75 ? "bg-rose-50 text-rose-700 border border-rose-200" : "bg-emerald-50 text-emerald-700"}`}>
+                            {summary?.attendancePercentage || 100}%
+                          </span>
+                        </td>
+                        <td className="p-3 text-[11px] font-semibold text-[#662C90]">
+                          {st.milestone?.stage || "LANGUAGE_COURSE"}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Footer */}
+            <div className="pt-3 border-t border-slate-200 flex items-center justify-between text-[11px] text-slate-400">
+              <p>Generated by Massive Japan Language Institute (MJLI CRM)</p>
+              <p>Authorized Verification Document</p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

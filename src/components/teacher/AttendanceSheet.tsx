@@ -642,11 +642,18 @@ export const AttendanceSheet: React.FC<AttendanceSheetProps> = ({
                               {student.name}
                             </span>
                           </div>
-                          {student.guardianNumber && (
-                            <p className="text-[10px] text-slate-400 mt-0.5">
-                              অভিভাবক: {student.guardianNumber}
-                            </p>
-                          )}
+                          <div className="flex items-center gap-2 mt-0.5">
+                            {summary && (
+                              <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded ${summary.attendancePercentage < 75 ? "bg-rose-50 text-rose-700 border border-rose-200" : "bg-emerald-50 text-emerald-700"}`}>
+                                মোট উপস্থিতি: {summary.presentCount} দিন ({summary.attendancePercentage}%)
+                              </span>
+                            )}
+                            {student.guardianNumber && (
+                              <span className="text-[10px] text-slate-400">
+                                📞 {student.guardianNumber}
+                              </span>
+                            )}
+                          </div>
                         </button>
                       </td>
 
@@ -907,6 +914,80 @@ export const AttendanceSheet: React.FC<AttendanceSheetProps> = ({
                 <p className="text-base font-black text-amber-700">{excusedCount}</p>
               </div>
             </div>
+
+            {/* Absentee Follow-up & Parent Notification Actions */}
+            {absentCount > 0 && (
+              <div className="p-3.5 rounded-2xl bg-rose-50/70 border border-rose-200 text-xs space-y-2.5 text-left">
+                <div className="flex items-center justify-between">
+                  <span className="font-extrabold text-rose-800 flex items-center gap-1.5 text-xs">
+                    <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
+                    অনুপস্থিত শিক্ষার্থীদের অভিভাবক নোটিফিকেশন ({absentCount} জন)
+                  </span>
+                  <span className="text-[10px] font-bold text-rose-600 bg-white px-2 py-0.5 rounded-md border border-rose-200">
+                    ১-ক্লিক বার্তা
+                  </span>
+                </div>
+
+                <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                  {students
+                    .filter((s) => attendanceMap[s.id]?.status === "ABSENT")
+                    .map((s) => {
+                      const cleanPhone = (s.guardianNumber || s.mobileNumber || "").replace(/[^0-9]/g, "");
+                      const intlPhone = cleanPhone.startsWith("88") ? cleanPhone : `88${cleanPhone}`;
+                      const msgText = encodeURIComponent(
+                        `আসসালামু আলাইকুম। ম্যাসিভ জাপান ল্যাঙ্গুয়েজ ইনস্টিটিউট (MJLI) থেকে জানানো যাচ্ছে যে, আপনার সন্তান ${s.name} (ব্যাচ: ${currentBatch?.name || ""}) আজকের ক্লাসে (${selectedDate}) অনুপস্থিত। নিয়মিত উপস্থিতি নিশ্চিত করার অনুরোধ করা হচ্ছে। বিস্তারিত জানতে যোগাযোগ করুন।`
+                      );
+
+                      return (
+                        <div
+                          key={s.id}
+                          className="p-2.5 rounded-xl bg-white border border-rose-100 flex items-center justify-between shadow-2xs"
+                        >
+                          <div>
+                            <p className="font-bold text-slate-900 text-xs">{s.name}</p>
+                            <p className="text-[11px] text-slate-500 font-mono">
+                              {s.guardianNumber || "অভিভাবকের নম্বর নেই"}
+                            </p>
+                          </div>
+
+                          {s.guardianNumber ? (
+                            <div className="flex items-center gap-1.5">
+                              {/* WhatsApp 1-Click Action */}
+                              <a
+                                href={`https://wa.me/${intlPhone}?text=${msgText}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] flex items-center gap-1 shadow-2xs"
+                                title="হোয়াটসঅ্যাপে পাঠান"
+                              >
+                                WhatsApp
+                              </a>
+                              {/* Direct Device SMS Action */}
+                              <a
+                                href={`sms:${s.guardianNumber}?body=${msgText}`}
+                                className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-900 text-white font-bold text-[11px] flex items-center gap-1 shadow-2xs"
+                                title="সাধারণ এসএমএস পাঠান"
+                              >
+                                SMS
+                              </a>
+                              {/* Call Action */}
+                              <a
+                                href={`tel:${s.guardianNumber}`}
+                                className="p-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px]"
+                                title="সরাসরি কল দিন"
+                              >
+                                📞
+                              </a>
+                            </div>
+                          ) : (
+                            <span className="text-[10px] text-slate-400 italic">নম্বর নেই</span>
+                          )}
+                        </div>
+                      );
+                    })}
+                </div>
+              </div>
+            )}
 
             {topicCovered && (
               <div className="p-3 rounded-xl bg-purple-50/70 border border-purple-100 text-xs">
