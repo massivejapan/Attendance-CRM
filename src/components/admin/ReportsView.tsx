@@ -320,6 +320,37 @@ function doPost(e) {
     var raw = e && e.postData ? e.postData.contents : "{}";
     var data = typeof raw === "string" ? JSON.parse(raw) : raw;
     var ss = SpreadsheetApp.getActiveSpreadsheet();
+
+    if (data.type === "VISA_DOCUMENTS") {
+      var docSheetName = "Master_Visa_Documents";
+      var docSheet = ss.getSheetByName(docSheetName);
+      if (!docSheet) {
+        docSheet = ss.insertSheet(docSheetName);
+      }
+      docSheet.clearContents();
+      docSheet.appendRow(["Student ID", "Student Name", "Batch", "Phone", "Guardian Phone", "Milestone Stage", "Visa Docs Submitted", "Correction Status", "Notes"]);
+      docSheet.getRange("A1:I1").setFontWeight("bold").setBackground("#662C90").setFontColor("#FFFFFF");
+      docSheet.setFrozenRows(1);
+      
+      if (data.records && Array.isArray(data.records)) {
+        data.records.forEach(function(rec) {
+          docSheet.appendRow([
+            rec.studentIdCode || "",
+            rec.studentName || "",
+            rec.batchName || "",
+            rec.phone || "",
+            rec.guardianNumber || "",
+            rec.milestoneStage || "",
+            rec.submittedDocs || "",
+            rec.correctionCount || "",
+            rec.notes || ""
+          ]);
+        });
+      }
+      return ContentService.createTextOutput(JSON.stringify({ status: "success", message: "Visa Documents Master Sheet Updated" }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
     var sheetName = data.batchName ? data.batchName.toString().trim() : "Master_Attendance";
     var sheet = ss.getSheetByName(sheetName);
     
@@ -345,13 +376,13 @@ function doPost(e) {
       });
     }
     
-    return ContentService.createTextOutput(JSON.stringify({ status: "success", message: "Updated" }))
+    return ContentService.createTextOutput(JSON.stringify({ status: "success", message: "Attendance Sheet Updated" }))
       .setMimeType(ContentService.MimeType.JSON);
   } catch(err) {
     return ContentService.createTextOutput(JSON.stringify({ status: "error", message: err.toString() }))
       .setMimeType(ContentService.MimeType.JSON);
   }
-}`;
+};`;
                     navigator.clipboard.writeText(scriptCode);
                     setSyncFeedback("✓ গুগল অ্যাপস স্ক্রিপ্ট কোড কপি হয়েছে!");
                     setTimeout(() => setSyncFeedback(null), 5000);

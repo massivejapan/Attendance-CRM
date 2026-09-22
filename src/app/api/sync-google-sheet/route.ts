@@ -83,7 +83,7 @@ export async function POST(req: Request) {
           },
         });
 
-        // Send payload for each batch
+        // 1. Send payload for each batch attendance
         for (const batch of runningBatches) {
           const latestLog = await prisma.classLog.findFirst({
             where: { batchId: batch.id },
@@ -119,6 +119,7 @@ export async function POST(req: Request) {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
+              type: "ATTENDANCE",
               batchName: batch.name.replace(/[^a-zA-Z0-9_-]/g, "_"),
               date: latestLog?.date || new Date().toISOString().split("T")[0],
               dayName: latestLog?.dayName || "Regular",
@@ -128,6 +129,48 @@ export async function POST(req: Request) {
             }),
           });
         }
+
+        // 2. Send Master Visa Documents & Milestone Directory Payload
+        const allStudents = await prisma.student.findMany({
+          where: { status: "ACTIVE" },
+          include: { batch: { select: { name: true } } },
+          orderBy: { studentIdCode: "asc" },
+        });
+
+        const docSummaryRecords = allStudents.map((s) => {
+          let docsObj: Record<string, any> = {};
+          try {
+            if (s.documents) {
+              docsObj = JSON.parse(s.documents);
+            }
+          } catch (e) {}
+
+          const submittedCount = Object.values(docsObj).filter((d: any) => d?.isSubmitted).length;
+          const correctionCount = Object.values(docsObj).filter((d: any) => d?.status === "CORRECTION_NEEDED").length;
+          
+          return {
+            studentIdCode: s.studentIdCode,
+            studentName: s.name,
+            batchName: s.batch?.name || "N/A",
+            phone: s.mobileNumber || "",
+            guardianNumber: s.guardianNumber || "",
+            milestoneStage: s.milestoneStage || "LANGUAGE_COURSE",
+            submittedDocs: `${submittedCount} / 27`,
+            correctionCount: correctionCount > 0 ? `${correctionCount} items need fix` : "All Clear",
+            notes: s.refInfo || "",
+          };
+        });
+
+        await fetch(currentConfig.sheetUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            type: "VISA_DOCUMENTS",
+            batchName: "Master_Visa_Documents",
+            date: new Date().toISOString().split("T")[0],
+            records: docSummaryRecords,
+          }),
+        });
       } catch (err) {
         console.error("Failed to post data to Google Apps Script:", err);
       }
