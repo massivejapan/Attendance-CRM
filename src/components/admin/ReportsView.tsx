@@ -135,15 +135,68 @@ export const ReportsView: React.FC = () => {
       {/* Header */}
       <div>
         <h2 className="text-xl font-extrabold text-slate-900">
-          রিপোর্ট এক্সপোর্ট, গুগল শিট অটো-সিঙ্ক ও টেস্ট ডাটা রিসেট
+          উপস্থিতি ও পারফরম্যান্স অ্যানালিটিক্স এবং ক্লাউড ব্যাকআপ
         </h2>
         <p className="text-xs text-slate-500">
-          হাজিরা রিপোর্ট ডাউনলোড করুন, গুগল ড্রাইভ ব্যাকআপ সেটআপ করুন অথবা টেস্টের পর ডাটাবেজ ক্লিয়ার করুন।
+          ব্যাচভিত্তিক অফিসিয়াল উপস্থিতি রিপোর্ট ডাউনলোড করুন, গুগল শিট রিয়েল-টাইম ক্লাউড সিঙ্ক পরিচালনা করুন অথবা সিস্টেম ডেটাবেজ ম্যানেজ করুন।
         </p>
       </div>
 
+      {/* Analytics KPI Overview */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs">
+          <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">
+            মোট নিবন্ধিত শিক্ষার্থী
+          </span>
+          <p className="text-2xl font-black text-slate-900 mt-1">
+            {students.filter((s) => s.status === "ACTIVE").length} <span className="text-xs font-normal text-slate-400">জন</span>
+          </p>
+          <p className="text-[11px] text-slate-400 mt-1">সক্রিয় ব্যাচসমূহের মোট তালিকা</p>
+        </div>
+
+        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs">
+          <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">
+            চলমান ও মোট ব্যাচ
+          </span>
+          <p className="text-2xl font-black text-[#662C90] mt-1">
+            {batches.filter((b) => b.status === "RUNNING").length} <span className="text-xs font-normal text-slate-400">/ {batches.length}টি</span>
+          </p>
+          <p className="text-[11px] text-slate-400 mt-1">সক্রিয় ক্লাসরুম শিডিউল</p>
+        </div>
+
+        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs">
+          <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">
+            নিয়মিত শিক্ষার্থী (≥৮৫%)
+          </span>
+          <p className="text-2xl font-black text-emerald-600 mt-1">
+            {
+              students.filter((s) => {
+                const sm = getStudentSummary(s.id);
+                return sm && sm.attendancePercentage >= 85;
+              }).length
+            } <span className="text-xs font-normal text-slate-400">জন</span>
+          </p>
+          <p className="text-[11px] text-emerald-600 font-semibold mt-1">ইন্টারভিউ অগ্রাধিকার ক্যান্ডিডেট</p>
+        </div>
+
+        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs">
+          <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">
+            ফলোআপ প্রয়োজন (&lt;৭৫%)
+          </span>
+          <p className="text-2xl font-black text-rose-600 mt-1">
+            {
+              students.filter((s) => {
+                const sm = getStudentSummary(s.id);
+                return sm && sm.attendancePercentage < 75;
+              }).length
+            } <span className="text-xs font-normal text-slate-400">জন</span>
+          </p>
+          <p className="text-[11px] text-rose-600 font-semibold mt-1">অভিভাবক যোগাযোগ ও কাউন্সেলিং</p>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* CSV Export Card */}
+        {/* CSV & Printable Export Card */}
         <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-4">
           <div className="flex items-center gap-3 border-b border-slate-100 pb-3">
             <div className="w-10 h-10 rounded-2xl bg-[#FFF4EE] text-[#F26622] border border-[#FED7AA] flex items-center justify-center">
@@ -151,10 +204,10 @@ export const ReportsView: React.FC = () => {
             </div>
             <div>
               <h3 className="font-extrabold text-slate-900 text-sm">
-                এক্সেল / CSV রিপোর্ট ডাউনলোড
+                অফিসিয়াল উপস্থিতি রিপোর্ট ডাউনলোড ও প্রিন্ট
               </h3>
               <p className="text-[11px] text-slate-500">
-                সকল বা নির্দিষ্ট ব্যাচের সম্পূর্ণ উপস্থিতি রিপোর্ট ডাউনলোড করুন।
+                সকল ব্যাচ বা নির্দিষ্ট ব্যাচের অফিশিয়াল উপস্থিতি ডেটাসেট ও এম্বাসি সার্টিফিকেট এক্সপোর্ট করুন।
               </p>
             </div>
           </div>
@@ -169,7 +222,7 @@ export const ReportsView: React.FC = () => {
                 onChange={(e) => setSelectedBatch(e.target.value)}
                 className="w-full px-3.5 py-2.5 text-xs rounded-2xl border border-slate-200 bg-slate-50 focus:ring-2 focus:ring-[#662C90] outline-none font-semibold text-slate-800"
               >
-                <option value="ALL">সকল ব্যাচ (একত্রিত রিপোর্ট)</option>
+                <option value="ALL">সকল ব্যাচ (একত্রিত মাস্টার রিপোর্ট)</option>
                 <optgroup label="চলমান ব্যাচসমূহ (Running Batches)">
                   {batches
                     .filter((b) => b.status === "RUNNING")
@@ -197,13 +250,13 @@ export const ReportsView: React.FC = () => {
                 className="w-full py-3 rounded-2xl font-bold text-xs bg-[#F26622] hover:bg-[#D95314] text-white shadow-sm transition-all flex items-center justify-center gap-1.5"
               >
                 <Download className="w-4 h-4" />
-                CSV ডাউনলোড
+                এক্সেল / CSV এক্সপোর্ট
               </button>
               <button
                 onClick={() => setShowBatchPrintModal(true)}
                 className="w-full py-3 rounded-2xl font-bold text-xs bg-[#662C90] hover:bg-[#532376] text-white shadow-sm transition-all flex items-center justify-center gap-1.5"
               >
-                🖨️ প্রিন্ট / PDF রিপোর্ট
+                🖨️ অফিসিয়াল প্রিন্ট / PDF
               </button>
             </div>
           </div>
@@ -217,10 +270,10 @@ export const ReportsView: React.FC = () => {
             </div>
             <div>
               <h3 className="font-extrabold text-slate-900 text-sm">
-                প্রতিদিনের অটোমেটিক গুগল শিট ব্যাকআপ
+                গুগল শিট ক্লাউড অটো-সিঙ্ক (Google Sheets Live Webhook)
               </h3>
               <p className="text-[11px] text-slate-500">
-                প্রতিদিন রাত ১১:৫৯ মিনিটে সমস্ত ডাটা স্বয়ংক্রিয়ভাবে গুগল ড্রাইভে ব্যাকআপ হবে।
+                প্রতিটি হাজিরার এন্ট্রি সরাসরি আপনার গুগল শিটে স্বয়ংক্রিয়ভাবে রিয়েল-টাইমে আপডেট হতে থাকবে।
               </p>
             </div>
           </div>
@@ -235,7 +288,7 @@ export const ReportsView: React.FC = () => {
 
             <div>
               <label className="block font-bold text-slate-600 mb-1">
-                সংযুক্ত গুগল ড্রাইভ / শিট লিংক (Google Drive / Sheet Link)
+                সংযুক্ত Google Apps Script Webhook URL
               </label>
               <div className="relative">
                 <Link2 className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -243,7 +296,7 @@ export const ReportsView: React.FC = () => {
                   type="url"
                   value={googleSheetUrl}
                   onChange={(e) => setGoogleSheetUrl(e.target.value)}
-                  placeholder="https://docs.google.com/spreadsheets/d/..."
+                  placeholder="https://script.google.com/macros/s/..."
                   className="w-full pl-9 pr-3 py-2 text-xs rounded-2xl border border-slate-200 bg-slate-50 focus:ring-2 focus:ring-[#662C90] outline-none text-slate-800 font-mono"
                 />
               </div>
@@ -252,21 +305,29 @@ export const ReportsView: React.FC = () => {
             <div className="pt-2 border-t border-slate-100 space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] text-slate-500 font-bold">
-                  একক গুগল শিটে রিয়েল-টাইম অটো-আপডেট সেটআপ (Apps Script)
+                  একক গুগল শিট রিয়েল-টাইম স্ক্রিপ্ট কোড
                 </span>
                 <button
                   type="button"
                   onClick={() => {
-                    const scriptCode = `function doPost(e) {
+                    const scriptCode = `function doGet(e) {
+  return ContentService.createTextOutput(JSON.stringify({ status: "active", message: "MJLI Webhook Active" }))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+function doPost(e) {
   try {
-    var data = JSON.parse(e.postData.contents);
+    var raw = e && e.postData ? e.postData.contents : "{}";
+    var data = typeof raw === "string" ? JSON.parse(raw) : raw;
     var ss = SpreadsheetApp.getActiveSpreadsheet();
-    var sheetName = data.batchName || "Master_Attendance";
+    var sheetName = data.batchName ? data.batchName.toString().trim() : "Master_Attendance";
     var sheet = ss.getSheetByName(sheetName);
     
     if (!sheet) {
       sheet = ss.insertSheet(sheetName);
       sheet.appendRow(["Date", "Day", "Student ID", "Student Name", "Status", "Note", "Teacher", "Topic Covered"]);
+      sheet.getRange("A1:H1").setFontWeight("bold").setBackground("#662C90").setFontColor("#FFFFFF");
+      sheet.setFrozenRows(1);
     }
     
     if (data.records && Array.isArray(data.records)) {
@@ -284,7 +345,7 @@ export const ReportsView: React.FC = () => {
       });
     }
     
-    return ContentService.createTextOutput(JSON.stringify({ status: "success", message: "Updated in Google Sheet" }))
+    return ContentService.createTextOutput(JSON.stringify({ status: "success", message: "Updated" }))
       .setMimeType(ContentService.MimeType.JSON);
   } catch(err) {
     return ContentService.createTextOutput(JSON.stringify({ status: "error", message: err.toString() }))
@@ -292,7 +353,7 @@ export const ReportsView: React.FC = () => {
   }
 }`;
                     navigator.clipboard.writeText(scriptCode);
-                    setSyncFeedback("✓ গুগল অ্যাপস স্ক্রিপ্ট কোড কপি হয়েছে! আপনার শিটের Extensions > Apps Script-এ পেস্ট করুন।");
+                    setSyncFeedback("✓ গুগল অ্যাপস স্ক্রিপ্ট কোড কপি হয়েছে!");
                     setTimeout(() => setSyncFeedback(null), 5000);
                   }}
                   className="px-3 py-1.5 rounded-xl font-bold text-[11px] bg-[#662C90] text-white hover:bg-[#532376] shadow-2xs transition-all flex items-center gap-1"
@@ -302,18 +363,16 @@ export const ReportsView: React.FC = () => {
               </div>
 
               <div className="p-3 rounded-2xl bg-purple-50/60 border border-purple-100 text-[11px] text-slate-600 space-y-1">
-                <p className="font-bold text-[#662C90]">📝 গুগল শিটে কানেক্ট করার সহজ ৩ ধাপ:</p>
-                <ol className="list-decimal list-inside space-y-0.5 text-[10.5px]">
-                  <li>আপনার Google Sheet খুলুন এবং মেনু থেকে <strong>Extensions &gt; Apps Script</strong>-এ যান।</li>
-                  <li>উপরের <strong>"স্ক্রিপ্ট কোড কপি করুন"</strong> বাটনে চাপ দিয়ে স্ক্রিপ্ট এডিটরে পেস্ট করুন।</li>
-                  <li>উপরে <strong>Deploy &gt; New Deployment &gt; Web App</strong> সিলেক্ট করে <em>Who has access: Anyone</em> দিয়ে Deploy করুন এবং লিংকটি এখানে পেস্ট করুন।</li>
-                </ol>
+                <p className="font-bold text-[#662C90]">📝 গুগল শিটে কানেক্ট করার সহজ ধাপ:</p>
+                <p className="text-[10.5px]">
+                  আপনার Google Sheet-এর <strong>Extensions &gt; Apps Script</strong>-এ কোডটি পেস্ট করে <strong>Deploy &gt; Web App</strong> হিসেবে ডিপ্লয় করুন এবং তৈরি হওয়া URL-টি উপরে সংরক্ষণ করুন।
+                </p>
               </div>
             </div>
 
             <div className="pt-1 flex items-center justify-between">
               <span className="text-[11px] text-slate-400 font-bold">
-                স্ট্যাটাস: অটোমেটিক সিঙ্কিং চালু
+                স্ট্যাটাস: অটোমেটিক সিঙ্কিং সক্রিয়
               </span>
               <button
                 type="button"
@@ -331,18 +390,18 @@ export const ReportsView: React.FC = () => {
         </div>
       </div>
 
-      {/* 1-Click Test Data Reset Card */}
+      {/* Enterprise Database Maintenance & Master State */}
       <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-4">
         <div className="flex items-center gap-3 border-b border-slate-100 pb-3">
-          <div className="w-10 h-10 rounded-2xl bg-amber-50 text-amber-600 border border-amber-200 flex items-center justify-center">
+          <div className="w-10 h-10 rounded-2xl bg-slate-100 text-slate-700 border border-slate-200 flex items-center justify-center">
             <RotateCcw className="w-5 h-5" />
           </div>
           <div>
             <h3 className="font-extrabold text-slate-900 text-sm">
-              টেস্টিং ডাটা রিমুভ ও মূল এক্সেল ডাটাবেজ রিস্টোর (1-Click Test Reset)
+              সিস্টেম ডাটাবেজ ব্যাকআপ ও মাস্টার রিস্টোর (Database Master Management)
             </h3>
             <p className="text-[11px] text-slate-500">
-              টেস্ট করার সময় আপনি যত খুশি হাজিরা বা ডাটা পরিবর্তন করতে পারেন। কাজ শেষ হলে ১-ক্লিকেই ডাটাবেজ রিসেট করে আগের ফ্রেশ এক্সেল ফাইলে ফিরিয়ে আনতে পারবেন।
+              প্রয়োজনে সিস্টেম ডাটাবেজকে মূল ডিফল্ট মাস্টার অবস্থায় রিস্টোর করতে পারেন।
             </p>
           </div>
         </div>
@@ -361,10 +420,10 @@ export const ReportsView: React.FC = () => {
         <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div className="space-y-1">
             <p className="text-xs font-extrabold text-slate-800">
-              মূল এক্সেল ফাইল অনুযায়ী ফ্রেশ ডাটাবেজ লোড
+              ডিফল্ট মাস্টার ডাটাবেজ স্টেট লোড
             </p>
             <p className="text-[11px] text-slate-500">
-              এই বাটনে চাপ দিলে আপনার দেওয়া দুটি এক্সেল ফাইল (<span className="font-mono text-slate-700">ATTENDANCE_SHEET_FIXED.xlsx</span> এবং <span className="font-mono text-slate-700">MJLI_Batch_Information_Connected.xlsx</span>) থেকে ফ্রেশ ডাটা রিস্টোর হয়ে যাবে।
+              সমস্ত টেস্ট রেকর্ড মুছে ফেলে ইনস্টিটিউটের মূল ফ্রেশ মাস্টার প্রোফাইল রিস্টোর করতে এই ফিচারটি ব্যবহার করুন।
             </p>
           </div>
 
@@ -374,10 +433,10 @@ export const ReportsView: React.FC = () => {
                 type="button"
                 disabled={isResetting}
                 onClick={() => setShowResetConfirm(true)}
-                className="px-5 py-2.5 rounded-2xl font-bold text-xs bg-amber-500 hover:bg-amber-600 text-white shadow-sm transition-all flex items-center gap-2 whitespace-nowrap disabled:opacity-50"
+                className="px-5 py-2.5 rounded-2xl font-bold text-xs bg-slate-800 hover:bg-slate-900 text-white shadow-sm transition-all flex items-center gap-2 whitespace-nowrap disabled:opacity-50"
               >
                 <RotateCcw className={`w-4 h-4 ${isResetting ? "animate-spin" : ""}`} />
-                {isResetting ? "রিসেট হচ্ছে..." : "টেস্ট ডাটা ক্লিয়ার করুন"}
+                {isResetting ? "রিস্টোর হচ্ছে..." : "মাস্টার রিস্টোর"}
               </button>
             ) : (
               <div className="flex items-center gap-2">
@@ -387,7 +446,7 @@ export const ReportsView: React.FC = () => {
                   className="px-4 py-2 rounded-2xl font-extrabold text-xs bg-rose-600 hover:bg-rose-700 text-white shadow-sm transition-all flex items-center gap-1.5"
                 >
                   <AlertTriangle className="w-3.5 h-3.5" />
-                  হ্যাঁ, রিসেট নিশ্চিত
+                  হ্যাঁ, রিস্টোর নিশ্চিত
                 </button>
                 <button
                   type="button"
@@ -399,54 +458,6 @@ export const ReportsView: React.FC = () => {
               </div>
             )}
           </div>
-        </div>
-      </div>
-
-      {/* Future Excel Upload Box */}
-      <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-4">
-        <div className="flex items-center gap-3 border-b border-slate-100 pb-3">
-          <div className="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-600 border border-indigo-200 flex items-center justify-center">
-            <Upload className="w-5 h-5" />
-          </div>
-          <div>
-            <h3 className="font-extrabold text-slate-900 text-sm">
-              ভবিষ্যতের নতুন এক্সেল ফাইল ইম্পোর্ট
-            </h3>
-            <p className="text-[11px] text-slate-500">
-              ভবিষ্যতে কোনো নতুন এক্সেল ফাইল আসলে এখান থেকে সরাসরি আপলোড করা যাবে।
-            </p>
-          </div>
-        </div>
-
-        {uploadFeedback && (
-          <div className="p-3.5 rounded-2xl bg-indigo-50 text-indigo-800 border border-indigo-200 text-xs font-bold flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 text-indigo-600" />
-            {uploadFeedback}
-          </div>
-        )}
-
-        <div className="border-2 border-dashed border-slate-200 rounded-3xl p-8 text-center space-y-3 hover:border-[#662C90] hover:bg-[#F7F2FA]/50 transition-all">
-          <div className="w-12 h-12 rounded-2xl bg-[#F7F2FA] text-[#662C90] mx-auto flex items-center justify-center border border-[#E9D8FD]">
-            <FileSpreadsheet className="w-6 h-6" />
-          </div>
-          <div className="space-y-1">
-            <p className="font-extrabold text-slate-800 text-sm">
-              এক্সেল ফাইল এখানে ড্র্যাগ অ্যান্ড ড্রপ করুন অথবা নির্বাচন করুন
-            </p>
-            <p className="text-xs text-slate-400">
-              সাপোর্টেড ফরম্যাট: .xlsx, .xls, .csv
-            </p>
-          </div>
-
-          <label className="inline-block px-5 py-2.5 rounded-2xl font-bold text-xs bg-[#662C90] hover:bg-[#532376] text-white cursor-pointer shadow-sm transition-all">
-            ফাইল বাছাই করুন
-            <input
-              type="file"
-              accept=".xlsx, .xls, .csv"
-              onChange={handleFileUpload}
-              className="sr-only"
-            />
-          </label>
         </div>
       </div>
       {/* Official Printable Batch Report Modal */}
