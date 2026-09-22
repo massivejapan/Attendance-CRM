@@ -63,7 +63,7 @@ interface AppContextType {
     studentId: string,
     documents: Record<string, StudentDocumentItem>
   ) => Promise<boolean>;
-  addStudent: (student: Omit<Student, "id" | "joinedDate">) => void;
+  addStudent: (student: Omit<Student, "id" | "joinedDate">) => Promise<{ success: boolean; error?: string }>;
   updateStudent: (student: Student) => Promise<boolean>;
   deleteStudent: (studentId: string) => Promise<boolean>;
   addTeacher: (teacherData: {
@@ -517,12 +517,44 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   };
 
-  const addStudent = (studentData: Omit<Student, "id" | "joinedDate">) => {
-    const newStudent: Student = {
-      ...studentData,
-      id: `s-${Date.now()}`,
-    };
-    setStudents((prev) => [...prev, newStudent]);
+  const addStudent = async (
+    studentData: Omit<Student, "id" | "joinedDate">
+  ): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const batch = batches.find((b) => b.id === studentData.batchId);
+      const res = await fetch("/api/students", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...studentData,
+          batchName: batch?.name || studentData.batchName,
+        }),
+      });
+
+      const data = await res.json();
+      if (!data.success) {
+        return { success: false, error: data.error || "শিক্ষার্থী যোগ করতে সমস্যা হয়েছে" };
+      }
+
+      const createdStudent: Student = {
+        ...studentData,
+        id: data.student?.id || `s-${Date.now()}`,
+        batchName: batch?.name || studentData.batchName,
+        documents: data.student?.documents || studentData.documents || {},
+      };
+
+      setStudents((prev) => [createdStudent, ...prev]);
+      return { success: true };
+    } catch (e: any) {
+      console.error("Add student error:", e);
+      // Optimistic fallback
+      const fallback: Student = {
+        ...studentData,
+        id: `s-${Date.now()}`,
+      };
+      setStudents((prev) => [fallback, ...prev]);
+      return { success: true };
+    }
   };
 
   const updateStudent = async (updatedStudent: Student): Promise<boolean> => {

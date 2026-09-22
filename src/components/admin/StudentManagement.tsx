@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { useApp } from "@/context/AppContext";
-import { Student } from "@/types";
+import { Student, StudentDocumentItem, STANDARD_VISA_DOCUMENTS, MilestoneStage } from "@/types";
 import {
   Users,
   Plus,
@@ -14,6 +14,11 @@ import {
   AlertTriangle,
   UserCheck,
   MessageSquare,
+  FileText,
+  ChevronDown,
+  ChevronUp,
+  Check,
+  Clock,
 } from "lucide-react";
 import { openWhatsApp, getWhatsAppGeneralMsg } from "@/lib/utils";
 
@@ -31,6 +36,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
     addStudent,
     updateStudent,
     deleteStudent,
+    currentUser,
   } = useApp();
 
   const [searchQuery, setSearchQuery] = useState("");
@@ -42,15 +48,71 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
   const [studentToDelete, setStudentToDelete] = useState<Student | null>(null);
   const [studentToEdit, setStudentToEdit] = useState<Student | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
+  const [isSubmittingAdd, setIsSubmittingAdd] = useState(false);
 
   // New Student Form
   const [newIdCode, setNewIdCode] = useState("");
   const [newName, setNewName] = useState("");
   const [newMobile, setNewMobile] = useState("");
   const [newGuardian, setNewGuardian] = useState("");
+  const [newRefInfo, setNewRefInfo] = useState("");
+  const [newMilestone, setNewMilestone] = useState<MilestoneStage>("LANGUAGE_COURSE");
   const [newBatchId, setNewBatchId] = useState(
     batches.find((b) => b.status === "RUNNING")?.id || batches[0]?.id || ""
   );
+  const [isDocsSectionOpen, setIsDocsSectionOpen] = useState(false);
+  const [newDocsMap, setNewDocsMap] = useState<Record<string, StudentDocumentItem>>(() => {
+    const init: Record<string, StudentDocumentItem> = {};
+    STANDARD_VISA_DOCUMENTS.forEach((d) => {
+      init[d.id] = {
+        id: d.id,
+        title: d.title,
+        isSubmitted: false,
+        receivedDate: undefined,
+        receivedBy: undefined,
+        status: "PENDING",
+        note: "",
+      };
+    });
+    return init;
+  });
+
+  const handleToggleNewDoc = (docId: string, currentChecked: boolean) => {
+    const today = new Date().toISOString().split("T")[0];
+    const newChecked = !currentChecked;
+    setNewDocsMap((prev) => {
+      const current = prev[docId];
+      return {
+        ...prev,
+        [docId]: {
+          ...current,
+          isSubmitted: newChecked,
+          receivedDate: newChecked ? current?.receivedDate || today : undefined,
+          receivedBy: newChecked ? current?.receivedBy || currentUser?.name || currentUser?.username || "" : undefined,
+          status: newChecked ? (current?.status === "CORRECTION_NEEDED" ? "CORRECTION_NEEDED" : "OK") : "PENDING",
+          updatedAt: new Date().toISOString(),
+        },
+      };
+    });
+  };
+
+  const handleNewDocFieldChange = (
+    docId: string,
+    field: "receivedDate" | "receivedBy" | "status" | "note",
+    value: any
+  ) => {
+    setNewDocsMap((prev) => {
+      const current = prev[docId];
+      return {
+        ...prev,
+        [docId]: {
+          ...current,
+          [field]: value,
+          updatedAt: new Date().toISOString(),
+        },
+      };
+    });
+  };
 
   // Edit Student Form
   const [editIdCode, setEditIdCode] = useState("");
@@ -102,26 +164,53 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
     setTimeout(() => setFeedback(null), 4000);
   };
 
-  const handleAddStudent = (e: React.FormEvent) => {
+  const handleAddStudent = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newIdCode || !newName || !newBatchId) return;
 
-    addStudent({
+    setIsSubmittingAdd(true);
+    const result = await addStudent({
       studentIdCode: newIdCode.trim(),
       name: newName.trim(),
       mobileNumber: newMobile.trim() || undefined,
       guardianNumber: newGuardian.trim() || undefined,
+      refInfo: newRefInfo.trim() || undefined,
       batchId: newBatchId,
       status: "ACTIVE",
+      milestoneStage: newMilestone,
+      documents: newDocsMap,
     });
+    setIsSubmittingAdd(false);
 
-    setShowAddModal(false);
-    setFeedback(`✓ নতুন শিক্ষার্থী ${newName} সফলভাবে যুক্ত হয়েছে!`);
-    setTimeout(() => setFeedback(null), 4000);
-    setNewIdCode("");
-    setNewName("");
-    setNewMobile("");
-    setNewGuardian("");
+    if (result.success) {
+      setShowAddModal(false);
+      setFeedback(`✓ নতুন শিক্ষার্থী ${newName} সফলভাবে যুক্ত হয়েছে!`);
+      setTimeout(() => setFeedback(null), 4000);
+      setNewIdCode("");
+      setNewName("");
+      setNewMobile("");
+      setNewGuardian("");
+      setNewRefInfo("");
+      setNewMilestone("LANGUAGE_COURSE");
+      setIsDocsSectionOpen(false);
+      // Reset doc map
+      const init: Record<string, StudentDocumentItem> = {};
+      STANDARD_VISA_DOCUMENTS.forEach((d) => {
+        init[d.id] = {
+          id: d.id,
+          title: d.title,
+          isSubmitted: false,
+          receivedDate: undefined,
+          receivedBy: undefined,
+          status: "PENDING",
+          note: "",
+        };
+      });
+      setNewDocsMap(init);
+    } else {
+      setFeedback(`⚠️ ${result.error || "শিক্ষার্থী যোগ করতে সমস্যা হয়েছে"}`);
+      setTimeout(() => setFeedback(null), 5000);
+    }
   };
 
   const filteredStudents = students.filter((s) => {
@@ -532,50 +621,57 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
 
       {/* Add Student Modal */}
       {showAddModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4 border border-slate-200">
+        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-2xl w-full p-6 shadow-2xl space-y-4 border border-slate-200 max-h-[90vh] flex flex-col animate-in fade-in">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h3 className="font-extrabold text-slate-900 text-base">
-                নতুন শিক্ষার্থী যুক্ত করুন
-              </h3>
+              <div>
+                <h3 className="font-extrabold text-slate-900 text-base">
+                  নতুন শিক্ষার্থী যুক্ত করুন (Add New Student)
+                </h3>
+                <p className="text-[11px] text-slate-500">
+                  মৌলিক তথ্যের পাশাপাশি ভর্তির সময় জমা নেওয়া ভিসা ডকুমেন্টস চেকলিস্ট যুক্ত করতে পারেন।
+                </p>
+              </div>
               <button
                 onClick={() => setShowAddModal(false)}
-                className="text-slate-400 hover:text-slate-700 font-bold"
+                className="text-slate-400 hover:text-slate-700 font-bold text-base p-1"
               >
                 ✕
               </button>
             </div>
 
-            <form onSubmit={handleAddStudent} className="space-y-3.5 text-xs">
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">
-                  স্টুডেন্ট আইডি *
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="যেমন: 25240"
-                  value={newIdCode}
-                  onChange={(e) => setNewIdCode(e.target.value)}
-                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-[#662C90] outline-none font-bold"
-                />
+            <form onSubmit={handleAddStudent} className="space-y-4 text-xs overflow-y-auto flex-1 pr-1">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    স্টুডেন্ট আইডি *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="যেমন: 25240"
+                    value={newIdCode}
+                    onChange={(e) => setNewIdCode(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-[#662C90] outline-none font-bold text-[#662C90]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    শিক্ষার্থীর নাম *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="যেমন: MD. RAHIM MIAH"
+                    value={newName}
+                    onChange={(e) => setNewName(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-[#662C90] outline-none font-bold text-slate-900"
+                  />
+                </div>
               </div>
 
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">
-                  শিক্ষার্থীর নাম *
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="যেমন: MD. RAHIM MIAH"
-                  value={newName}
-                  onChange={(e) => setNewName(e.target.value)}
-                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-[#662C90] outline-none font-bold"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block font-bold text-slate-700 mb-1">
                     মোবাইল নম্বর
@@ -603,49 +699,190 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                 </div>
               </div>
 
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">
-                  ব্যাচ নির্বাচন *
-                </label>
-                <select
-                  value={newBatchId}
-                  onChange={(e) => setNewBatchId(e.target.value)}
-                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-[#662C90] outline-none bg-white font-semibold"
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    ব্যাচ নির্বাচন *
+                  </label>
+                  <select
+                    value={newBatchId}
+                    onChange={(e) => setNewBatchId(e.target.value)}
+                    className="w-full px-3.5 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-[#662C90] outline-none bg-white font-semibold"
+                  >
+                    <optgroup label="চলমান ব্যাচসমূহ (Running Batches)">
+                      {batches
+                        .filter((b) => b.status === "RUNNING")
+                        .map((b) => (
+                          <option key={b.id} value={b.id}>
+                            {b.name} ({b.scheduleDays})
+                          </option>
+                        ))}
+                    </optgroup>
+                    <optgroup label="অন্যান্য ব্যাচসমূহ">
+                      {batches
+                        .filter((b) => b.status === "COMPLETED")
+                        .map((b) => (
+                          <option key={b.id} value={b.id}>
+                            {b.name}
+                          </option>
+                        ))}
+                    </optgroup>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    বর্তমান পর্যায় (Milestone Stage)
+                  </label>
+                  <select
+                    value={newMilestone}
+                    onChange={(e) => setNewMilestone(e.target.value as MilestoneStage)}
+                    className="w-full px-3.5 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-[#662C90] outline-none bg-white font-semibold text-[#662C90]"
+                  >
+                    <option value="LANGUAGE_COURSE">১. ভাষা কোর্স চলমান (Language Course)</option>
+                    <option value="INTERVIEW_SCHEDULED">২. ইন্টারভিউ শিডিউল্ড (Interview)</option>
+                    <option value="COE_AWAITING">৩. COE প্রসেসিং (COE Awaiting)</option>
+                    <option value="VISA_APPROVED">৪. ভিসা অনুমোদিত (Visa Approved)</option>
+                    <option value="FLY_TO_JAPAN">৫. জাপান ফ্লাইট সম্পন্ন (Fly to Japan)</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Collapsible Visa Documents Checklist */}
+              <div className="border border-purple-200 rounded-2xl bg-purple-50/40 overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setIsDocsSectionOpen(!isDocsSectionOpen)}
+                  className="w-full p-3.5 flex items-center justify-between font-bold text-slate-800 hover:bg-purple-100/50 transition-colors"
                 >
-                  <optgroup label="চলমান ব্যাচসমূহ (Running Batches)">
-                    {batches
-                      .filter((b) => b.status === "RUNNING")
-                      .map((b) => (
-                        <option key={b.id} value={b.id}>
-                          {b.name} ({b.scheduleDays})
-                        </option>
-                      ))}
-                  </optgroup>
-                  <optgroup label="অন্যান্য ব্যাচসমূহ">
-                    {batches
-                      .filter((b) => b.status === "COMPLETED")
-                      .map((b) => (
-                        <option key={b.id} value={b.id}>
-                          {b.name}
-                        </option>
-                      ))}
-                  </optgroup>
-                </select>
+                  <div className="flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-[#662C90]" />
+                    <span className="text-xs">জাপান ভিসা ডকুমেন্টস চেকলিস্ট (ভর্তির সময় জমা নেওয়া ফাইল)</span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-[#662C90] text-white">
+                      {Object.values(newDocsMap).filter((d) => d.isSubmitted).length} / 27 জমা
+                    </span>
+                  </div>
+                  {isDocsSectionOpen ? <ChevronUp className="w-4 h-4 text-slate-500" /> : <ChevronDown className="w-4 h-4 text-slate-500" />}
+                </button>
+
+                {isDocsSectionOpen && (
+                  <div className="p-3.5 border-t border-purple-100 bg-white space-y-2.5 max-h-60 overflow-y-auto">
+                    <p className="text-[11px] text-slate-500 italic pb-1">
+                      যেসব ডকুমেন্ট শিক্ষার্থী জমা দিয়েছে সেগুলোতে টিক দিন। আজকের তারিখ ও লগইন করা অ্যাডমিনের নাম স্বয়ংক্রিয়ভাবে বসে যাবে।
+                    </p>
+
+                    <div className="divide-y divide-slate-100">
+                      {STANDARD_VISA_DOCUMENTS.map((doc, idx) => {
+                        const item = newDocsMap[doc.id] || {
+                          id: doc.id,
+                          title: doc.title,
+                          isSubmitted: false,
+                          status: "PENDING",
+                          note: "",
+                        };
+
+                        return (
+                          <div
+                            key={doc.id}
+                            className={`py-2 px-1.5 transition-colors rounded-xl ${
+                              item.isSubmitted ? "bg-purple-50/50" : ""
+                            }`}
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <label className="flex items-center gap-2 cursor-pointer flex-1">
+                                <input
+                                  type="checkbox"
+                                  checked={item.isSubmitted}
+                                  onChange={() => handleToggleNewDoc(doc.id, item.isSubmitted)}
+                                  className="w-4 h-4 rounded text-[#662C90] focus:ring-[#662C90] cursor-pointer"
+                                />
+                                <span
+                                  className={`text-xs ${
+                                    item.isSubmitted ? "font-bold text-slate-900" : "text-slate-600"
+                                  }`}
+                                >
+                                  {idx + 1}. {doc.title}
+                                </span>
+                              </label>
+
+                              {item.isSubmitted && (
+                                <div className="flex items-center gap-1.5">
+                                  <select
+                                    value={item.status || "OK"}
+                                    onChange={(e) =>
+                                      handleNewDocFieldChange(doc.id, "status", e.target.value)
+                                    }
+                                    className={`text-[10px] font-bold py-1 px-2 rounded-lg border outline-none ${
+                                      item.status === "CORRECTION_NEEDED"
+                                        ? "bg-rose-50 text-rose-800 border-rose-300 font-bold"
+                                        : "bg-emerald-50 text-emerald-800 border-emerald-300"
+                                    }`}
+                                  >
+                                    <option value="OK">সঠিক (OK)</option>
+                                    <option value="CORRECTION_NEEDED">সংশোধন প্রয়োজন</option>
+                                  </select>
+                                </div>
+                              )}
+                            </div>
+
+                            {item.isSubmitted && (
+                              <div className="mt-2 pl-6 grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px]">
+                                <div>
+                                  <input
+                                    type="date"
+                                    value={item.receivedDate || ""}
+                                    onChange={(e) =>
+                                      handleNewDocFieldChange(doc.id, "receivedDate", e.target.value)
+                                    }
+                                    className="w-full px-2 py-1 rounded-lg border border-slate-200 bg-white text-[11px]"
+                                  />
+                                </div>
+                                <div>
+                                  <input
+                                    type="text"
+                                    placeholder="রিসিভারের নাম"
+                                    value={item.receivedBy || ""}
+                                    onChange={(e) =>
+                                      handleNewDocFieldChange(doc.id, "receivedBy", e.target.value)
+                                    }
+                                    className="w-full px-2 py-1 rounded-lg border border-slate-200 bg-white text-[11px]"
+                                  />
+                                </div>
+                                <div>
+                                  <input
+                                    type="text"
+                                    placeholder="মন্তব্য / কারেকশন নোট"
+                                    value={item.note || ""}
+                                    onChange={(e) =>
+                                      handleNewDocFieldChange(doc.id, "note", e.target.value)
+                                    }
+                                    className="w-full px-2 py-1 rounded-lg border border-slate-200 bg-white text-[11px]"
+                                  />
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
                 <button
                   type="button"
                   onClick={() => setShowAddModal(false)}
-                  className="px-4 py-2 rounded-2xl font-bold text-slate-600 hover:bg-slate-100"
+                  className="px-4 py-2.5 rounded-2xl font-bold text-slate-600 hover:bg-slate-100"
                 >
                   বাতিল
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-2.5 rounded-2xl font-bold bg-[#F26622] hover:bg-[#D95314] text-white shadow-sm"
+                  disabled={isSubmittingAdd}
+                  className="px-6 py-2.5 rounded-2xl font-bold bg-[#F26622] hover:bg-[#D95314] text-white shadow-sm disabled:opacity-50 transition-all flex items-center gap-1"
                 >
-                  শিক্ষার্থী যুক্ত করুন
+                  {isSubmittingAdd ? "সংরক্ষণ হচ্ছে..." : "শিক্ষার্থী যুক্ত করুন"}
                 </button>
               </div>
             </form>
