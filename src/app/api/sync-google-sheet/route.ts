@@ -72,7 +72,65 @@ export async function POST(req: Request) {
       } catch (e) {}
     }
 
-    if (triggerSyncNow) {
+    if (triggerSyncNow && currentConfig.sheetUrl && currentConfig.sheetUrl.includes("script.google.com")) {
+      try {
+        const runningBatches = await prisma.batch.findMany({
+          include: {
+            students: {
+              where: { status: "ACTIVE" },
+              select: { id: true, studentIdCode: true, name: true },
+            },
+          },
+        });
+
+        // Send payload for each batch
+        for (const batch of runningBatches) {
+          const latestLog = await prisma.classLog.findFirst({
+            where: { batchId: batch.id },
+            orderBy: { date: "desc" },
+          });
+
+          const latestAttendances = latestLog
+            ? await prisma.attendance.findMany({
+                where: { batchId: batch.id, date: latestLog.date },
+                include: { student: { select: { studentIdCode: true, name: true } } },
+              })
+            : [];
+
+          const records = latestAttendances.map((a) => ({
+            studentIdCode: a.student.studentIdCode,
+            studentName: a.student.name,
+            status: a.status,
+            note: a.note || "",
+          }));
+
+          // Fallback if no attendances yet: list active students
+          const payloadRecords =
+            records.length > 0
+              ? records
+              : batch.students.map((s) => ({
+                  studentIdCode: s.studentIdCode,
+                  studentName: s.name,
+                  status: "ENROLLED",
+                  note: "Active Student",
+                }));
+
+          await fetch(currentConfig.sheetUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              batchName: batch.name.replace(/[^a-zA-Z0-9_-]/g, "_"),
+              date: latestLog?.date || new Date().toISOString().split("T")[0],
+              dayName: latestLog?.dayName || "Regular",
+              teacherName: latestLog?.teacherName || "Assigned Teacher",
+              topicCovered: latestLog?.topicCovered || "Syllabus ongoing",
+              records: payloadRecords,
+            }),
+          });
+        }
+      } catch (err) {
+        console.error("Failed to post data to Google Apps Script:", err);
+      }
       currentConfig.lastSyncTime = new Date().toISOString();
       currentConfig.syncStatus = "SYNCED";
     }

@@ -129,6 +129,48 @@ export async function POST(req: Request) {
       });
     }
 
+    // 4. Asynchronous Background Google Sheets Sync (fire & forget, 0ms lag for client)
+    prisma.batch
+      .findUnique({
+        where: { id: batchId },
+        select: { name: true },
+      })
+      .then(async (batchInfo) => {
+        const syncConfig = await prisma.appSetting.findUnique({
+          where: { key: "GOOGLE_SHEET_SYNC_CONFIG" },
+        });
+        if (syncConfig) {
+          try {
+            const config = JSON.parse(syncConfig.value);
+            if (config.sheetUrl && config.sheetUrl.includes("script.google.com")) {
+              const formattedRecords = records.map((r) => {
+                const matchedStudent = batchStudents.find((s) => s.id === r.studentId || s.studentIdCode === r.studentId);
+                return {
+                  studentIdCode: matchedStudent?.studentIdCode || r.studentId,
+                  studentName: (r as any).studentName || matchedStudent?.id || "Student",
+                  status: r.status,
+                  note: r.note || "",
+                };
+              });
+
+              fetch(config.sheetUrl, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  batchName: (batchInfo?.name || "Batch").replace(/[^a-zA-Z0-9_-]/g, "_"),
+                  date,
+                  dayName: dayName || "Regular",
+                  teacherName: effectiveTeacherName,
+                  topicCovered: topicCovered || "Class Completed",
+                  records: formattedRecords,
+                }),
+              }).catch((e) => console.warn("Background sheet sync failed:", e));
+            }
+          } catch (e) {}
+        }
+      })
+      .catch((e) => console.warn("Async sheet sync error:", e));
+
     return NextResponse.json({
       success: true,
       message: "হাজিরা ও সিলেবাস নোট ডাটাবেজে সফলভাবে সংরক্ষিত হয়েছে!",

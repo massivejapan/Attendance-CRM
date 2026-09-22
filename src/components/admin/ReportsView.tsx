@@ -18,7 +18,7 @@ export const ReportsView: React.FC = () => {
 
   const [selectedBatch, setSelectedBatch] = useState("ALL");
   const [googleSheetUrl, setGoogleSheetUrl] = useState(
-    "https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit"
+    "https://script.google.com/macros/s/AKfycbyVb7KWHJDUoFXJgOmje4Ir3UtrVmQbjfooU7YeiYHqqlH3arE71VQZlFQOlx29gyyBlQ/exec"
   );
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncFeedback, setSyncFeedback] = useState<string | null>(null);
