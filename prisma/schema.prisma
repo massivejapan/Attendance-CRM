@@ -68,6 +68,7 @@ model Student {
   visaIssueDate      String?
   visaStatusNotes    String?
   batchHistory       String          @default("[]") // JSON string array of transfer history
+  documents          String          @default("{}") // JSON string of visa documents checklist
   
   createdAt          DateTime        @default(now())
   updatedAt          DateTime        @updatedAt

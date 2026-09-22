@@ -92,6 +92,7 @@ export interface Student {
   visaIssueDate?: string;
   visaStatusNotes?: string;
   milestone?: StudentMilestone; // Career / Interview / COE / Visa details
+  documents?: Record<string, StudentDocumentItem>;
   batchHistory?: {
     fromBatch?: string;
     toBatch?: string;
@@ -104,6 +105,47 @@ export interface Student {
     transferredBy?: string;
   }[];
 }
+
+export interface StudentDocumentItem {
+  id: string; // e.g. "app_form_jp"
+  title: string;
+  isSubmitted: boolean;
+  receivedDate?: string; // YYYY-MM-DD
+  receivedBy?: string; // e.g. "Sadif", "Admin"
+  status?: "OK" | "CORRECTION_NEEDED" | "PENDING";
+  note?: string; // Editable note / correction remarks
+  updatedAt?: string;
+}
+
+export const STANDARD_VISA_DOCUMENTS: { id: string; title: string; category: string }[] = [
+  { id: "app_form_jp", title: "Application Form ( From JP School )", category: "Application" },
+  { id: "study_purpose_en", title: "Study Purpose English", category: "Statement of Purpose" },
+  { id: "study_purpose_jp", title: "Study Purpose JP Translate", category: "Statement of Purpose" },
+  { id: "lang_cert_massive", title: "Languages Certificate ( Massive )", category: "Language" },
+  { id: "passport", title: "Student Passport", category: "Identity" },
+  { id: "lang_cert_jp_other", title: "Japanese Languages Certificate ( If any )", category: "Language" },
+  { id: "edu_cert", title: "HSC/Bachelor Certificate", category: "Education" },
+  { id: "edu_cert_jp", title: "HSC /Bachelor Certificate JP Translate", category: "Education" },
+  { id: "edu_transcript", title: "HSC/Bachelor Transcript", category: "Education" },
+  { id: "edu_transcript_jp", title: "HSC/Bachelor Transcript JP Translate", category: "Education" },
+  { id: "uni_noc", title: "University NOC ( If Running Student )", category: "Education" },
+  { id: "uni_noc_jp", title: "University NOC JP Translate", category: "Education" },
+  { id: "nid_sponsor", title: "NID Sponsor", category: "Sponsor" },
+  { id: "nid_sponsor_jp", title: "NID Sponsor Jp Translate", category: "Sponsor" },
+  { id: "family_cert", title: "Family Certificate ( Student)", category: "Family" },
+  { id: "family_cert_jp", title: "Family Certificate ( Student) JP Translate", category: "Family" },
+  { id: "sponsor_tin", title: "Sponsor TIN Certificate", category: "Financial" },
+  { id: "sponsor_tin_jp", title: "Sponsor TIN Certificate JP Translate", category: "Financial" },
+  { id: "sponsor_tax", title: "Sponsor TAX Certificate", category: "Financial" },
+  { id: "sponsor_tax_jp", title: "Sponsor TAX Certificate JP Translate", category: "Financial" },
+  { id: "sponsor_ack_cert", title: "Sponsor Acknowledgement Certificate", category: "Financial" },
+  { id: "sponsor_ack_cert_jp", title: "Sponsor Acknowledgement Certificate JP Translate", category: "Financial" },
+  { id: "sponsor_trade_license", title: "Sponsor Trade License", category: "Business" },
+  { id: "sponsor_trade_license_jp", title: "Sponsor Trade License JP Translate", category: "Business" },
+  { id: "bank_solvency", title: "Bank Solvency Certificate", category: "Banking" },
+  { id: "bank_solvency_jp", title: "Bank Solvency Certificate JP Translate", category: "Banking" },
+  { id: "bank_statement", title: "Bank Statement", category: "Banking" },
+];
 
 export interface AttendanceRecord {
   id: string;

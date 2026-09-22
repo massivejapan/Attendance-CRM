@@ -11,6 +11,7 @@ import {
   AttendanceStatus,
   StudentMilestone,
   FollowUpCallLog,
+  StudentDocumentItem,
 } from "@/types";
 import {
   initialUsers,
@@ -56,6 +57,10 @@ interface AppContextType {
   updateStudentMilestone: (
     studentId: string,
     milestone: StudentMilestone
+  ) => Promise<boolean>;
+  updateStudentDocuments: (
+    studentId: string,
+    documents: Record<string, StudentDocumentItem>
   ) => Promise<boolean>;
   addStudent: (student: Omit<Student, "id" | "joinedDate">) => void;
   updateStudent: (student: Student) => Promise<boolean>;
@@ -481,6 +486,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   };
 
+  const updateStudentDocuments = async (
+    studentId: string,
+    documents: Record<string, StudentDocumentItem>
+  ): Promise<boolean> => {
+    setStudents((prev) =>
+      prev.map((s) => {
+        if (s.id === studentId) {
+          return {
+            ...s,
+            documents,
+          };
+        }
+        return s;
+      })
+    );
+
+    try {
+      await fetch(`/api/students/${studentId}/documents`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ documents }),
+      });
+      return true;
+    } catch (e) {
+      console.error("Documents update backend error:", e);
+      return false;
+    }
+  };
+
   const addStudent = (studentData: Omit<Student, "id" | "joinedDate">) => {
     const newStudent: Student = {
       ...studentData,
@@ -747,6 +781,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         saveAttendance,
         shiftStudentBatch,
         updateStudentMilestone,
+        updateStudentDocuments,
         addStudent,
         updateStudent,
         deleteStudent,

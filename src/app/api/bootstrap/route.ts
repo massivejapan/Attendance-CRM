@@ -98,6 +98,7 @@ export async function GET() {
         coeResultDate: s.coeResultDate || undefined,
         visaIssueDate: s.visaIssueDate || undefined,
         visaStatusNotes: s.visaStatusNotes || undefined,
+        documents: (s as any).documents ? JSON.parse((s as any).documents) : {},
         batchHistory: s.batchHistory ? JSON.parse(s.batchHistory) : [],
       };
     });
