@@ -147,7 +147,7 @@ export const StudentProfileDrawer: React.FC<StudentProfileDrawerProps> = ({
           ...current,
           isSubmitted: newChecked,
           receivedDate: newChecked ? current?.receivedDate || today : undefined,
-          receivedBy: newChecked ? current?.receivedBy || currentUser?.name || "Admin" : undefined,
+          receivedBy: newChecked ? current?.receivedBy || "" : undefined,
           status: newChecked ? (current?.status === "CORRECTION_NEEDED" ? "CORRECTION_NEEDED" : "OK") : "PENDING",
           updatedAt: new Date().toISOString(),
         },
@@ -651,7 +651,7 @@ export const StudentProfileDrawer: React.FC<StudentProfileDrawerProps> = ({
                             </label>
                             <input
                               type="text"
-                              placeholder="যেমন: Sadif / MAM Sir"
+                              placeholder="রিসিভারের নাম লিখুন..."
                               value={item.receivedBy || ""}
                               onChange={(e) =>
                                 handleDocFieldChange(doc.id, "receivedBy", e.target.value)
