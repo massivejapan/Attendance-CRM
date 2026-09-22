@@ -162,7 +162,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab }) => 
                     }`}
                   >
                     <UserCheck className="w-3.5 h-3.5" />
-                    শিক্ষক ট্র্যাকিং
+                    ইউজার ও শিক্ষক
                   </button>
                   <button
                     onClick={() => handleTabClick("batches")}
@@ -465,7 +465,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab }) => 
                     }`}
                   >
                     <UserCheck className="w-4 h-4" />
-                    <span>👨‍🏫 শিক্ষক ব্যবস্থাপনা ও পাসওয়ার্ড</span>
+                    <span>👨‍🏫 ইউজার, স্টাফ ও শিক্ষক ব্যবস্থাপনা</span>
                   </button>
 
                   <button

@@ -12,6 +12,7 @@ import {
   StudentMilestone,
   FollowUpCallLog,
   StudentDocumentItem,
+  UserRole,
 } from "@/types";
 import {
   initialUsers,
@@ -71,6 +72,7 @@ interface AppContextType {
     email?: string;
     phone?: string;
     password?: string;
+    role?: UserRole;
     assignedBatchIds?: string[];
     assignedDays?: string[];
   }) => Promise<{ success: boolean; error?: string }>;
@@ -605,6 +607,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
           phone: updatedTeacher.phone,
           email: updatedTeacher.email,
           password: updatedTeacher.password,
+          role: updatedTeacher.role,
           assignedBatchIds: updatedTeacher.assignedBatchIds,
           assignedDays: updatedTeacher.assignedDays,
           isActive: updatedTeacher.isActive,

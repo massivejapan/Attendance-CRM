@@ -11,12 +11,13 @@ export async function POST(
   try {
     const { id } = await params;
     const body = await req.json();
-    const { name, phone, email, password, assignedBatchIds, assignedDays, isActive } = body;
+    const { name, phone, email, password, role, assignedBatchIds, assignedDays, isActive } = body;
 
     const dataToUpdate: any = {};
     if (name !== undefined) dataToUpdate.name = name.trim();
     if (phone !== undefined) dataToUpdate.phone = phone.trim();
     if (email !== undefined) dataToUpdate.email = email.trim().toLowerCase();
+    if (role !== undefined) dataToUpdate.role = role === "SUPER_ADMIN" ? "SUPER_ADMIN" : "TEACHER";
     if (assignedBatchIds !== undefined) dataToUpdate.assignedBatchIds = JSON.stringify(assignedBatchIds);
     if (assignedDays !== undefined) dataToUpdate.assignedDays = JSON.stringify(assignedDays);
     if (isActive !== undefined) dataToUpdate.isActive = isActive;

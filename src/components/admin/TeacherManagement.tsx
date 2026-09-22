@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { useApp } from "@/context/AppContext";
-import { User } from "@/types";
+import { User, UserRole } from "@/types";
 import {
   Users,
   Plus,
@@ -20,30 +20,35 @@ import {
   ShieldCheck,
   Mail,
   AlertCircle,
+  Eye,
+  Crown,
+  UserCheck,
+  ShieldAlert,
 } from "lucide-react";
 
 export const TeacherManagement: React.FC = () => {
-  const { users, batches, classLogs, addTeacher, updateTeacher, deleteTeacher } = useApp();
+  const { users, batches, classLogs, addTeacher, updateTeacher, deleteTeacher, loginAs, currentUser } = useApp();
 
-  const teachers = users.filter((u) => u.role === "TEACHER");
-  const [selectedTeacherId, setSelectedTeacherId] = useState<string>(
-    teachers[0]?.id || ""
+  const [roleFilter, setRoleFilter] = useState<"ALL" | "SUPER_ADMIN" | "TEACHER">("ALL");
+  const [selectedUserId, setSelectedUserId] = useState<string>(
+    users[0]?.id || ""
   );
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [userToDelete, setUserToDelete] = useState<User | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [logBatchFilter, setLogBatchFilter] = useState("ALL");
   const [feedback, setFeedback] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // New Teacher Form State
+  // New User Form State
   const [newName, setNewName] = useState("");
   const [newUsername, setNewUsername] = useState("");
+  const [newRole, setNewRole] = useState<UserRole>("TEACHER");
   const [newEmail, setNewEmail] = useState("");
   const [newPhone, setNewPhone] = useState("");
-  const [newPassword, setNewPassword] = useState("teacher123");
+  const [newPassword, setNewPassword] = useState("massive123");
   const [newAssignedBatches, setNewAssignedBatches] = useState<string[]>([]);
   const [newAssignedDays, setNewAssignedDays] = useState<string[]>([
     "Sat",
@@ -51,72 +56,94 @@ export const TeacherManagement: React.FC = () => {
     "Wed",
   ]);
 
-  // Edit Teacher Form State
+  // Edit User Form State
   const [editName, setEditName] = useState("");
+  const [editRole, setEditRole] = useState<UserRole>("TEACHER");
   const [editPhone, setEditPhone] = useState("");
   const [editEmail, setEditEmail] = useState("");
   const [editPassword, setEditPassword] = useState("");
+  const [editIsActive, setEditIsActive] = useState(true);
   const [editAssignedBatches, setEditAssignedBatches] = useState<string[]>([]);
   const [editAssignedDays, setEditAssignedDays] = useState<string[]>([]);
 
-  const selectedTeacher = users.find((u) => u.id === selectedTeacherId) || teachers[0];
+  const filteredUsers = users.filter((u) => {
+    if (roleFilter !== "ALL" && u.role !== roleFilter) return false;
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      return (
+        u.name.toLowerCase().includes(q) ||
+        u.username.toLowerCase().includes(q) ||
+        (u.phone && u.phone.includes(q))
+      );
+    }
+    return true;
+  });
+
+  const selectedUser = users.find((u) => u.id === selectedUserId) || filteredUsers[0] || users[0];
 
   const teacherLogs = classLogs
     .filter(
       (cl) =>
-        (cl.teacherId === selectedTeacher?.id || cl.teacherName === selectedTeacher?.name) &&
+        (cl.teacherId === selectedUser?.id || cl.teacherName === selectedUser?.name) &&
         (logBatchFilter === "ALL" ? true : cl.batchId === logBatchFilter)
     )
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
   const totalClassesConducted = classLogs.filter(
-    (cl) => cl.teacherId === selectedTeacher?.id || cl.teacherName === selectedTeacher?.name
+    (cl) => cl.teacherId === selectedUser?.id || cl.teacherName === selectedUser?.name
   ).length;
 
   const totalStudentsTaught = classLogs
-    .filter((cl) => cl.teacherId === selectedTeacher?.id || cl.teacherName === selectedTeacher?.name)
+    .filter((cl) => cl.teacherId === selectedUser?.id || cl.teacherName === selectedUser?.name)
     .reduce((acc, curr) => acc + curr.presentCount, 0);
 
-  const handleOpenEditModal = (t: User) => {
-    setSelectedTeacherId(t.id);
-    setEditName(t.name);
-    setEditPhone(t.phone || "");
-    setEditEmail(t.email || "");
+  const adminCount = users.filter((u) => u.role === "SUPER_ADMIN").length;
+  const teacherCount = users.filter((u) => u.role === "TEACHER").length;
+
+  const handleOpenEditModal = (u: User) => {
+    setSelectedUserId(u.id);
+    setEditName(u.name);
+    setEditRole(u.role);
+    setEditPhone(u.phone || "");
+    setEditEmail(u.email || "");
     setEditPassword("");
-    setEditAssignedBatches([...(t.assignedBatchIds || [])]);
-    setEditAssignedDays([...(t.assignedDays || ["Sat", "Mon", "Wed"])]);
+    setEditIsActive(u.isActive);
+    setEditAssignedBatches([...(u.assignedBatchIds || [])]);
+    setEditAssignedDays([...(u.assignedDays || ["Sat", "Mon", "Wed"])]);
     setShowEditModal(true);
   };
 
-  const handleSaveTeacherEdit = async (e: React.FormEvent) => {
+  const handleSaveUserEdit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedTeacher) return;
+    if (!selectedUser) return;
 
     setIsSubmitting(true);
     setErrorMessage(null);
 
     const success = await updateTeacher({
-      ...selectedTeacher,
+      ...selectedUser,
       name: editName,
+      role: editRole,
       phone: editPhone,
       email: editEmail,
+      isActive: editIsActive,
       password: editPassword.trim() ? editPassword.trim() : undefined,
-      assignedBatchIds: editAssignedBatches,
-      assignedDays: editAssignedDays,
+      assignedBatchIds: editRole === "TEACHER" ? editAssignedBatches : [],
+      assignedDays: editRole === "TEACHER" ? editAssignedDays : [],
     });
 
     setIsSubmitting(false);
 
     if (success) {
       setShowEditModal(false);
-      setFeedback(`✓ ${editName}-এর তথ্য ও ব্যাচ অ্যাসাইনমেন্ট সফলভাবে আপডেট হয়েছে!`);
+      setFeedback(`✓ ${editName}-এর তথ্য ও পারমিশন সফলভাবে আপডেট হয়েছে!`);
       setTimeout(() => setFeedback(null), 4000);
     } else {
-      setErrorMessage("শিক্ষকের তথ্য আপডেট করতে সমস্যা হয়েছে");
+      setErrorMessage("ইউজারের তথ্য আপডেট করতে সমস্যা হয়েছে");
     }
   };
 
-  const handleCreateTeacher = async (e: React.FormEvent) => {
+  const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newName.trim() || !newUsername.trim()) return;
 
@@ -126,51 +153,51 @@ export const TeacherManagement: React.FC = () => {
     const res = await addTeacher({
       name: newName.trim(),
       username: newUsername.toLowerCase().trim(),
+      role: newRole,
       email: newEmail.trim() || `${newUsername.toLowerCase().trim()}@massivejapan.com`,
       phone: newPhone.trim(),
-      password: newPassword.trim() || "teacher123",
-      assignedBatchIds: newAssignedBatches,
-      assignedDays: newAssignedDays,
+      password: newPassword.trim() || "massive123",
+      assignedBatchIds: newRole === "TEACHER" ? newAssignedBatches : [],
+      assignedDays: newRole === "TEACHER" ? newAssignedDays : [],
     });
 
     setIsSubmitting(false);
 
     if (res.success) {
       setShowAddModal(false);
-      setFeedback(`✓ নতুন শিক্ষক ${newName} (User: ${newUsername}) সফলভাবে তৈরি হয়েছে!`);
+      setFeedback(
+        `✓ নতুন ${newRole === "SUPER_ADMIN" ? "সুপার অ্যাডমিন" : "শিক্ষক"} "${newName}" (ইউজার: ${newUsername}) সফলভাবে তৈরি হয়েছে!`
+      );
       setTimeout(() => setFeedback(null), 4000);
       setNewName("");
       setNewUsername("");
+      setNewRole("TEACHER");
       setNewEmail("");
       setNewPhone("");
-      setNewPassword("teacher123");
+      setNewPassword("massive123");
       setNewAssignedBatches([]);
     } else {
-      setErrorMessage(res.error || "শিক্ষক তৈরি করতে ব্যর্থ হয়েছে");
+      setErrorMessage(res.error || "ইউজার তৈরি করতে ব্যর্থ হয়েছে");
     }
   };
 
-  const handleDeleteTeacher = async () => {
-    if (!selectedTeacher) return;
+  const handleDeleteUser = async () => {
+    if (!userToDelete) return;
     setIsSubmitting(true);
-    const success = await deleteTeacher(selectedTeacher.id);
+    const success = await deleteTeacher(userToDelete.id);
     setIsSubmitting(false);
-    setShowDeleteConfirm(false);
+    setUserToDelete(null);
 
     if (success) {
-      setFeedback(`✓ শিক্ষক "${selectedTeacher.name}" সফলভাবে মুছে ফেলা হয়েছে!`);
+      setFeedback(`✓ ইউজার "${userToDelete.name}" সফলভাবে মুছে ফেলা হয়েছে!`);
       setTimeout(() => setFeedback(null), 4000);
-      const remaining = teachers.filter((t) => t.id !== selectedTeacher.id);
-      if (remaining.length > 0) {
-        setSelectedTeacherId(remaining[0].id);
-      }
     } else {
-      setErrorMessage("শিক্ষক মুছতে সমস্যা হয়েছে");
+      setErrorMessage("ইউজার ডিলিট করা যায়নি");
     }
   };
 
-  const toggleBatchAssignment = (batchId: string, isEdit: boolean) => {
-    if (isEdit) {
+  const toggleBatchAssignment = (batchId: string, isEditing: boolean) => {
+    if (isEditing) {
       setEditAssignedBatches((prev) =>
         prev.includes(batchId)
           ? prev.filter((id) => id !== batchId)
@@ -185,515 +212,352 @@ export const TeacherManagement: React.FC = () => {
     }
   };
 
-  const filteredTeachers = teachers.filter(
-    (t) =>
-      t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      t.username.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const toggleDayAssignment = (day: string, isEditing: boolean) => {
+    if (isEditing) {
+      setEditAssignedDays((prev) =>
+        prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]
+      );
+    } else {
+      setNewAssignedDays((prev) =>
+        prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]
+      );
+    }
+  };
 
   return (
-    <div className="space-y-5">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div className="space-y-6">
+      {/* Toast Feedback */}
+      {feedback && (
+        <div className="p-4 rounded-2xl bg-emerald-600 text-white flex items-center justify-between text-xs font-bold shadow-md animate-in fade-in">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-5 h-5 text-white" />
+            <span className="text-sm">{feedback}</span>
+          </div>
+          <button onClick={() => setFeedback(null)} className="text-white/80 hover:text-white font-bold">
+            ✕
+          </button>
+        </div>
+      )}
+
+      {/* Header & Controls */}
+      <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-extrabold text-slate-900">
-            শিক্ষক প্রোফাইল, লগইন পাসওয়ার্ড ও সিলেবাস ট্র্যাকিং
+          <h2 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+            <ShieldCheck className="w-5 h-5 text-[#662C90]" />
+            ব্যবহারকারী ও স্টাফ ব্যবস্থাপনা (User & Staff Management)
           </h2>
-          <p className="text-xs text-slate-500">
-            শিক্ষকদের ইউজার/পাসওয়ার্ড ও নির্ধারিত ব্যাচ সেট করুন, এবং কোন দিন কি পড়িয়েছেন তা দেখুন।
+          <p className="text-xs text-slate-500 mt-0.5">
+            সুপার অ্যাডমিন, ভিসা কর্মকর্তা, কাউন্সেলর ও শিক্ষক অ্যাকাউন্ট তৈরি, পাসওয়ার্ড ও ব্যাচ নিয়ন্ত্রণ করুন।
           </p>
         </div>
 
-        <button
-          onClick={() => setShowAddModal(true)}
-          className="px-4 py-2.5 rounded-2xl text-xs font-bold bg-[#F26622] hover:bg-[#D95314] text-white shadow-sm transition-all flex items-center gap-1.5 self-start sm:self-auto"
-        >
-          <Plus className="w-4 h-4" />
-          নতুন শিক্ষক যুক্ত করুন
-        </button>
+        <div className="flex flex-wrap items-center gap-2.5">
+          {/* Role Filter Tabs */}
+          <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs font-bold">
+            <button
+              onClick={() => setRoleFilter("ALL")}
+              className={`px-3 py-1.5 rounded-lg transition-all ${
+                roleFilter === "ALL"
+                  ? "bg-white text-[#662C90] shadow-xs font-black"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              সকল ({users.length})
+            </button>
+            <button
+              onClick={() => setRoleFilter("SUPER_ADMIN")}
+              className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1 ${
+                roleFilter === "SUPER_ADMIN"
+                  ? "bg-[#662C90] text-white shadow-xs font-black"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              <Crown className="w-3.5 h-3.5" />
+              অ্যাডমিন ({adminCount})
+            </button>
+            <button
+              onClick={() => setRoleFilter("TEACHER")}
+              className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1 ${
+                roleFilter === "TEACHER"
+                  ? "bg-[#F26622] text-white shadow-xs font-black"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              <UserCheck className="w-3.5 h-3.5" />
+              শিক্ষক ({teacherCount})
+            </button>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              setErrorMessage(null);
+              setShowAddModal(true);
+            }}
+            className="px-4 py-2.5 rounded-xl bg-[#662C90] hover:bg-[#522375] text-white font-extrabold text-xs shadow-xs flex items-center gap-2 transition-all active:scale-95"
+          >
+            <Plus className="w-4 h-4" />
+            <span>নতুন ইউজার / শিক্ষক তৈরি</span>
+          </button>
+        </div>
       </div>
 
-      {feedback && (
-        <div className="p-3.5 rounded-2xl bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-bold flex items-center gap-2">
-          <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-          {feedback}
-        </div>
-      )}
-
-      {errorMessage && (
-        <div className="p-3.5 rounded-2xl bg-rose-50 text-rose-800 border border-rose-200 text-xs font-bold flex items-center gap-2">
-          <AlertCircle className="w-4 h-4 text-rose-600" />
-          {errorMessage}
-        </div>
-      )}
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-        {/* Left: Teacher List */}
-        <div className="bg-white rounded-3xl p-5 border border-slate-200 shadow-sm space-y-3">
+      {/* Main Grid: User List & Detail Panel */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Left Column: User Cards */}
+        <div className="lg:col-span-1 space-y-3">
           <div className="relative">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
-              placeholder="শিক্ষকের নাম বা ইউজারনেম খুঁজুন..."
+              placeholder="নাম বা ইউজারনেম দিয়ে খুঁজুন..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 text-xs rounded-2xl border border-slate-200 bg-slate-50 focus:ring-2 focus:ring-[#662C90] outline-none font-semibold"
+              className="w-full pl-8 pr-3 py-2 text-xs rounded-xl border border-slate-200 bg-white focus:outline-none focus:border-[#662C90] font-medium"
             />
           </div>
 
-          <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
-            শিক্ষকদের তালিকা ({filteredTeachers.length} জন)
-          </p>
-
-          <div className="space-y-2 text-xs">
-            {filteredTeachers.map((t) => {
-              const logsCount = classLogs.filter(
-                (cl) => cl.teacherId === t.id || cl.teacherName === t.name
-              ).length;
-              const isSelected = selectedTeacher?.id === t.id;
+          <div className="space-y-2.5 max-h-[750px] overflow-y-auto pr-1">
+            {filteredUsers.map((u) => {
+              const isSelected = selectedUser?.id === u.id;
+              const isSuperAdmin = u.role === "SUPER_ADMIN";
 
               return (
-                <button
-                  key={t.id}
-                  onClick={() => setSelectedTeacherId(t.id)}
-                  className={`w-full text-left p-3.5 rounded-2xl border transition-all flex items-center justify-between ${
+                <div
+                  key={u.id}
+                  onClick={() => setSelectedUserId(u.id)}
+                  className={`p-4 rounded-2xl border transition-all cursor-pointer space-y-2 text-xs ${
                     isSelected
-                      ? "bg-[#662C90] text-white border-[#662C90] shadow-sm"
-                      : "bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100"
+                      ? isSuperAdmin
+                        ? "bg-purple-50/70 border-[#662C90] shadow-xs"
+                        : "bg-[#FFF4EE]/70 border-[#F26622] shadow-xs"
+                      : "bg-white border-slate-200 hover:border-slate-300"
                   }`}
                 >
-                  <div className="flex items-center gap-3">
-                    <div
-                      className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-xs ${
-                        isSelected
-                          ? "bg-white/20 text-white"
-                          : "bg-[#FFF4EE] text-[#F26622] border border-[#FED7AA]"
-                      }`}
-                    >
-                      {t.name.charAt(0)}
-                    </div>
-                    <div>
-                      <h4 className="font-extrabold text-sm">{t.name}</h4>
-                      <p
-                        className={`text-[11px] font-mono ${
-                          isSelected ? "text-purple-200" : "text-slate-400"
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <div
+                        className={`w-9 h-9 rounded-xl text-white font-black text-xs flex items-center justify-center shadow-2xs ${
+                          isSuperAdmin ? "bg-[#662C90]" : "bg-[#F26622]"
                         }`}
                       >
-                        User: @{t.username}
-                      </p>
+                        {u.name.charAt(0)}
+                      </div>
+                      <div>
+                        <h3 className="font-extrabold text-slate-900 leading-tight">
+                          {u.name}
+                        </h3>
+                        <p className="text-[11px] text-slate-400 font-mono">
+                          @{u.username}
+                        </p>
+                      </div>
                     </div>
+
+                    <span
+                      className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase border ${
+                        isSuperAdmin
+                          ? "bg-purple-100 text-[#662C90] border-purple-200"
+                          : "bg-[#FFF4EE] text-[#F26622] border-[#FED7AA]"
+                      }`}
+                    >
+                      {isSuperAdmin ? "Super Admin" : "Teacher"}
+                    </span>
                   </div>
 
-                  <div className="text-right">
-                    <span
-                      className={`px-2 py-0.5 rounded-lg text-[10px] font-bold ${
-                        isSelected
-                          ? "bg-white/20 text-white"
-                          : "bg-purple-50 text-[#662C90] border border-purple-200"
-                      }`}
-                    >
-                      {t.assignedBatchIds?.length || 0}টি ব্যাচ
+                  <div className="flex flex-wrap items-center justify-between text-[11px] text-slate-500 pt-1 border-t border-slate-100">
+                    <span>
+                      {isSuperAdmin ? (
+                        <strong className="text-purple-700">সম্পূর্ণ অ্যাডমিন অ্যাক্সেস</strong>
+                      ) : (
+                        `অ্যাসাইন ব্যাচ: ${u.assignedBatchIds?.length || 0}টি`
+                      )}
                     </span>
-                    <p
-                      className={`text-[10px] mt-1 ${
-                        isSelected ? "text-purple-200" : "text-slate-400"
+                    <span
+                      className={`font-bold ${
+                        u.isActive ? "text-emerald-700" : "text-slate-400"
                       }`}
                     >
-                      {logsCount} ক্লাস নোট
-                    </p>
+                      {u.isActive ? "সক্রিয়" : "নিষ্ক্রিয়"}
+                    </span>
                   </div>
-                </button>
+                </div>
               );
             })}
           </div>
         </div>
 
-        {/* Right: Selected Teacher Detail, Batch Assignment & Syllabus Tracking */}
-        {selectedTeacher && (
-          <div className="lg:col-span-2 space-y-5">
-            {/* Profile & Action Card */}
-            <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+        {/* Right Column: Selected User Overview, Permissions & Class Logs */}
+        <div className="lg:col-span-2 space-y-4">
+          {selectedUser ? (
+            <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-xs space-y-5">
+              {/* Profile Header */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
                 <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-2xl bg-[#662C90] text-white flex items-center justify-center font-extrabold text-lg">
-                    {selectedTeacher.name.charAt(0)}
+                  <div
+                    className={`w-12 h-12 rounded-2xl text-white font-black text-lg flex items-center justify-center shadow-xs ${
+                      selectedUser.role === "SUPER_ADMIN" ? "bg-[#662C90]" : "bg-[#F26622]"
+                    }`}
+                  >
+                    {selectedUser.name.charAt(0)}
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
-                      <h3 className="text-lg font-black text-slate-900">
-                        {selectedTeacher.name}
-                      </h3>
-                      <span className="px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-purple-50 text-[#662C90] border border-purple-200">
-                        শিক্ষক (Teacher)
+                      <h2 className="text-lg font-black text-slate-900">{selectedUser.name}</h2>
+                      <span
+                        className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${
+                          selectedUser.role === "SUPER_ADMIN"
+                            ? "bg-purple-100 text-[#662C90] border border-purple-200"
+                            : "bg-[#FFF4EE] text-[#F26622] border border-[#FED7AA]"
+                        }`}
+                      >
+                        {selectedUser.role === "SUPER_ADMIN" ? "Super Admin" : "Teacher"}
                       </span>
                     </div>
-                    <div className="flex items-center gap-3 text-xs text-slate-500 mt-1">
-                      <span className="font-mono bg-slate-100 px-2 py-0.5 rounded text-slate-700 font-bold">
-                        User: @{selectedTeacher.username}
-                      </span>
-                      {selectedTeacher.phone && (
-                        <span className="flex items-center gap-1">
-                          <Phone className="w-3 h-3 text-slate-400" />
-                          {selectedTeacher.phone}
-                        </span>
-                      )}
-                    </div>
+                    <p className="text-xs text-slate-500 font-mono">
+                      ইউজারনেম: @{selectedUser.username} {selectedUser.phone ? `• 📞 ${selectedUser.phone}` : ""}
+                    </p>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 self-start sm:self-auto">
+                <div className="flex flex-wrap items-center gap-2">
                   <button
-                    onClick={() => handleOpenEditModal(selectedTeacher)}
-                    className="px-3.5 py-2 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-800 text-xs font-bold transition-all flex items-center gap-1.5"
+                    type="button"
+                    onClick={() => handleOpenEditModal(selectedUser)}
+                    className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center gap-1.5 border border-slate-200 transition-colors"
                   >
-                    <Edit className="w-3.5 h-3.5 text-[#662C90]" />
-                    পাসওয়ার্ড ও ব্যাচ এডিট
+                    <Edit className="w-3.5 h-3.5" />
+                    এডিট ও পাসওয়ার্ড পরিবর্তন
                   </button>
 
                   <button
-                    onClick={() => setShowDeleteConfirm(true)}
-                    className="p-2 rounded-xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-600 transition-all"
-                    title="শিক্ষক ডিলিট করুন"
+                    type="button"
+                    onClick={() => loginAs(selectedUser.id)}
+                    className="px-3.5 py-2 rounded-xl bg-purple-50 hover:bg-purple-100 text-[#662C90] font-bold text-xs flex items-center gap-1.5 border border-purple-200 transition-colors"
                   >
-                    <Trash2 className="w-4 h-4" />
+                    <Eye className="w-3.5 h-3.5" />
+                    এই ভিউতে প্রবেশ
                   </button>
-                </div>
-              </div>
 
-              {/* Stats & Overview */}
-              <div className="grid grid-cols-3 gap-3 text-center">
-                <div className="p-3 rounded-2xl bg-purple-50 border border-purple-100">
-                  <p className="text-[11px] font-bold text-[#662C90]">নির্ধারিত ব্যাচ</p>
-                  <p className="text-xl font-black text-[#662C90] mt-0.5">
-                    {selectedTeacher.assignedBatchIds?.length || 0}
-                  </p>
-                </div>
-
-                <div className="p-3 rounded-2xl bg-orange-50 border border-orange-100">
-                  <p className="text-[11px] font-bold text-[#F26622]">পরিচালিত ক্লাস</p>
-                  <p className="text-xl font-black text-[#F26622] mt-0.5">
-                    {totalClassesConducted}
-                  </p>
-                </div>
-
-                <div className="p-3 rounded-2xl bg-emerald-50 border border-emerald-100">
-                  <p className="text-[11px] font-bold text-emerald-800">মোট শিক্ষার্থী হাজিরা</p>
-                  <p className="text-xl font-black text-emerald-700 mt-0.5">
-                    {totalStudentsTaught}
-                  </p>
-                </div>
-              </div>
-
-              {/* Assigned Batches List */}
-              <div>
-                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-600 mb-2 flex items-center justify-between">
-                  <span>বর্তমানে অ্যাসাইন করা ব্যাচসমূহ</span>
-                  <span className="text-[10px] text-slate-400 font-normal">
-                    (টিচার শুধুমাত্র এই ব্যাচগুলোতেই হাজিরা নিতে পারবেন)
-                  </span>
-                </h4>
-                <div className="flex flex-wrap gap-2">
-                  {selectedTeacher.assignedBatchIds &&
-                  selectedTeacher.assignedBatchIds.length > 0 ? (
-                    selectedTeacher.assignedBatchIds.map((bId) => {
-                      const batch = batches.find((b) => b.id === bId);
-                      const isRunning = batch?.status === "RUNNING";
-                      return (
-                        <div
-                          key={bId}
-                          className={`px-3 py-1.5 rounded-xl text-xs font-extrabold border flex items-center gap-1.5 ${
-                            isRunning
-                              ? "bg-[#FFF4EE] border-[#FED7AA] text-[#F26622]"
-                              : "bg-slate-100 border-slate-200 text-slate-600"
-                          }`}
-                        >
-                          <BookOpen className="w-3.5 h-3.5" />
-                          <span>{batch?.name || bId}</span>
-                          <span
-                            className={`text-[9px] px-1.5 py-0.2 rounded-full ${
-                              isRunning
-                                ? "bg-[#F26622] text-white"
-                                : "bg-slate-300 text-slate-700"
-                            }`}
-                          >
-                            {isRunning ? "Running" : "Completed"}
-                          </span>
-                        </div>
-                      );
-                    })
-                  ) : (
-                    <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs font-bold w-full">
-                      ⚠️ এই শিক্ষকের জন্য এখনো কোনো ব্যাচ নির্ধারণ করা হয়নি। &apos;পাসওয়ার্ড ও ব্যাচ এডিট&apos; বাটনে ক্লিক করে ব্যাচ যুক্ত করুন।
-                    </div>
+                  {selectedUser.username !== "sadif609" && (
+                    <button
+                      type="button"
+                      onClick={() => setUserToDelete(selectedUser)}
+                      className="p-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200"
+                      title="ইউজার ডিলিট করুন"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   )}
                 </div>
               </div>
-            </div>
 
-            {/* Syllabus Logs Explorer ("তারা কি পড়াইছে কোনদিন") */}
-            <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
-                <div>
-                  <h3 className="font-extrabold text-slate-900 text-sm flex items-center gap-2">
-                    <BookOpen className="w-4 h-4 text-[#F26622]" />
-                    ক্লাস লেকচার ও সিলেবাস ইতিহাস (কোন দিন কি পড়িয়েছেন)
-                  </h3>
-                  <p className="text-[11px] text-slate-500">
-                    হাজিরা নেওয়ার সময় শিক্ষক যে সিলেবাস ও হোমওয়ার্ক এন্ট্রি দিয়েছেন।
+              {/* Information Cards based on Role */}
+              {selectedUser.role === "SUPER_ADMIN" ? (
+                <div className="p-4 rounded-2xl bg-purple-50/50 border border-purple-200 space-y-2 text-xs">
+                  <div className="flex items-center gap-2 text-[#662C90] font-extrabold text-sm">
+                    <Crown className="w-4 h-4" />
+                    সুপার অ্যাডমিন অ্যাকাউন্ট প্রিভিলেজ
+                  </div>
+                  <p className="text-slate-600">
+                    এই অ্যাকাউন্টটি সম্পূর্ণ CRM পরিচালনা করতে পারে — শিক্ষার্থী ভর্তি, ব্যাচ তৈরি, হাজিরা রিসেট, ভিসা ডকুমেন্টস ট্র্যাকিং, এক্সেল রিপোর্ট জেনারেশন এবং অন্যান্য অ্যাডমিন ও শিক্ষক নিয়ন্ত্রণ।
                   </p>
                 </div>
-
-                {/* Filter by batch */}
-                <select
-                  value={logBatchFilter}
-                  onChange={(e) => setLogBatchFilter(e.target.value)}
-                  className="px-3 py-1.5 text-xs rounded-xl border border-slate-200 bg-slate-50 font-bold text-slate-700 outline-none focus:ring-2 focus:ring-[#662C90]"
-                >
-                  <option value="ALL">সকল ব্যাচ ({teacherLogs.length})</option>
-                  {batches.map((b) => (
-                    <option key={b.id} value={b.id}>
-                      {b.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {teacherLogs.length === 0 ? (
-                <div className="text-center py-8 text-slate-400 text-xs font-semibold">
-                  এই শিক্ষকের জন্য এখনো কোনো ক্লাস লেকচার বা সিলেবাস রেকর্ড করা হয়নি।
-                </div>
               ) : (
-                <div className="space-y-3 max-h-96 overflow-y-auto pr-1">
-                  {teacherLogs.map((log) => {
-                    const batch = batches.find((b) => b.id === log.batchId);
-                    return (
-                      <div
-                        key={log.id}
-                        className="p-4 rounded-2xl border border-slate-200 bg-slate-50/70 hover:bg-slate-50 space-y-2 transition-all"
-                      >
-                        <div className="flex items-center justify-between text-xs">
-                          <div className="flex items-center gap-2">
-                            <span className="px-2.5 py-1 rounded-lg bg-[#662C90] text-white font-extrabold text-[11px]">
-                              {batch?.name || "Batch"}
-                            </span>
-                            <span className="font-bold text-slate-700 flex items-center gap-1">
-                              <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                              {log.date} ({log.dayName || "Class"})
-                            </span>
-                          </div>
+                <>
+                  {/* Teacher KPI Box */}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs text-center">
+                    <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                      <span className="text-slate-400 font-bold uppercase text-[10px]">অ্যাসাইন ব্যাচ</span>
+                      <p className="text-lg font-black text-[#662C90] mt-0.5">
+                        {selectedUser.assignedBatchIds?.length || 0}টি
+                      </p>
+                    </div>
+                    <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                      <span className="text-slate-400 font-bold uppercase text-[10px]">পরিচালিত ক্লাস</span>
+                      <p className="text-lg font-black text-[#F26622] mt-0.5">
+                        {totalClassesConducted}টি
+                      </p>
+                    </div>
+                    <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl col-span-2 sm:col-span-1">
+                      <span className="text-slate-400 font-bold uppercase text-[10px]">মোট শিক্ষার্থী অংশগ্রহণ</span>
+                      <p className="text-lg font-black text-emerald-700 mt-0.5">
+                        {totalStudentsTaught} জন
+                      </p>
+                    </div>
+                  </div>
 
-                          <div className="flex items-center gap-2 text-[11px] font-bold">
-                            <span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
-                              উপস্থিত: {log.presentCount}
+                  {/* Assigned Batches List */}
+                  <div className="space-y-2">
+                    <h3 className="text-xs font-black text-slate-800 uppercase">
+                      শিক্ষকের নির্ধারিত ব্যাচসমূহ (Assigned Batches)
+                    </h3>
+                    <div className="flex flex-wrap gap-2">
+                      {selectedUser.assignedBatchIds && selectedUser.assignedBatchIds.length > 0 ? (
+                        selectedUser.assignedBatchIds.map((bId) => {
+                          const batch = batches.find((b) => b.id === bId);
+                          return (
+                            <span
+                              key={bId}
+                              className="px-3 py-1.5 rounded-xl bg-purple-50 text-[#662C90] border border-purple-200 text-xs font-bold flex items-center gap-1.5"
+                            >
+                              <BookOpen className="w-3.5 h-3.5" />
+                              {batch?.name || bId} ({batch?.scheduleDays})
                             </span>
-                            <span className="text-rose-700 bg-rose-50 px-2 py-0.5 rounded-md border border-rose-200">
-                              অনুপস্থিত: {log.absentCount}
-                            </span>
-                          </div>
-                        </div>
+                          );
+                        })
+                      ) : (
+                        <p className="text-xs text-amber-700 font-medium bg-amber-50 p-2.5 rounded-xl border border-amber-200">
+                          বর্তমানে কোনো ব্যাচ অ্যাসাইন করা নেই। "এডিট" বাটন দিয়ে ব্যাচ অ্যাসাইন করুন।
+                        </p>
+                      )}
+                    </div>
+                  </div>
 
-                        <div className="text-xs text-slate-800 bg-white p-3 rounded-xl border border-slate-200/80">
-                          <p className="font-extrabold text-slate-900 mb-0.5 text-[11px] text-[#F26622]">
-                            পড়ানো বিষয় / সিলেবাস (Topic Covered):
-                          </p>
-                          <p className="font-medium text-slate-700">{log.topicCovered}</p>
+                  {/* Recent Class Logs Taken by this Teacher */}
+                  <div className="space-y-3 pt-2">
+                    <h3 className="text-xs font-black text-slate-800 uppercase">
+                      বিগত ক্লাস লগ ও সিলেবাস হিস্ট্রি ({teacherLogs.length}টি)
+                    </h3>
 
-                          {log.homework && (
-                            <div className="mt-2 pt-2 border-t border-slate-100 text-[11px]">
-                              <span className="font-bold text-purple-900">হোমওয়ার্ক: </span>
-                              <span className="text-slate-600">{log.homework}</span>
+                    <div className="divide-y divide-slate-100 text-xs max-h-72 overflow-y-auto">
+                      {teacherLogs.length > 0 ? (
+                        teacherLogs.map((log) => (
+                          <div key={log.id} className="py-3 space-y-1">
+                            <div className="flex items-center justify-between">
+                              <span className="font-bold text-slate-900">{log.date} ({log.dayName})</span>
+                              <span className="text-emerald-700 font-bold font-mono">
+                                {log.presentCount}/{log.totalStudents} উপস্থিত
+                              </span>
                             </div>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                            <p className="text-slate-600 italic">"{log.topicCovered}"</p>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-slate-400 py-4 text-center">এখনো কোনো ক্লাসের লগ পাওয়া যায়নি।</p>
+                      )}
+                    </div>
+                  </div>
+                </>
               )}
             </div>
-          </div>
-        )}
+          ) : (
+            <div className="p-12 text-center text-slate-400 text-xs bg-white rounded-2xl border border-slate-200">
+              কোনো ইউজার সিলেক্ট করা নেই।
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Edit Teacher Modal (Password, Profile & Batch Assign) */}
-      {showEditModal && selectedTeacher && (
-        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div>
-                <h3 className="font-extrabold text-slate-900 text-base">
-                  শিক্ষকের তথ্য, পাসওয়ার্ড ও ব্যাচ সম্পাদনা
-                </h3>
-                <p className="text-[11px] text-slate-500">
-                  {selectedTeacher.name} (User: @{selectedTeacher.username})
-                </p>
-              </div>
-              <button
-                onClick={() => setShowEditModal(false)}
-                className="text-slate-400 hover:text-slate-700 font-bold"
-              >
-                ✕
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveTeacherEdit} className="space-y-4 text-xs">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">
-                    শিক্ষকের নাম *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={editName}
-                    onChange={(e) => setEditName(e.target.value)}
-                    className="w-full px-3.5 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-[#662C90] outline-none font-semibold"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">
-                    ফোন নম্বর
-                  </label>
-                  <input
-                    type="text"
-                    value={editPhone}
-                    onChange={(e) => setEditPhone(e.target.value)}
-                    className="w-full px-3.5 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-[#662C90] outline-none"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">
-                  নতুন পাসওয়ার্ড সেট করুন (Change/Reset Password)
-                </label>
-                <div className="relative">
-                  <KeyRound className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="text"
-                    placeholder="অপরিবর্তিত রাখতে খালি রাখুন (যেমন: newpass2026)"
-                    value={editPassword}
-                    onChange={(e) => setEditPassword(e.target.value)}
-                    className="w-full pl-9 pr-3.5 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-[#662C90] outline-none font-mono"
-                  />
-                </div>
-                <p className="text-[10px] text-slate-400 mt-0.5">
-                  পাসওয়ার্ড পরিবর্তন না করতে চাইলে খালি রাখুন।
-                </p>
-              </div>
-
-              {/* Interactive Batch Checkbox Selector */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <label className="block font-bold text-slate-800">
-                    নির্ধারিত ব্যাচসমূহ নির্বাচন করুন ({editAssignedBatches.length}টি সিলেক্টেড)
-                  </label>
-                  <span className="text-[10px] text-slate-400">
-                    (যে ব্যাচে টিক দিবেন, শুধুমাত্র সেখানেই হাজিরা নিতে পারবেন)
-                  </span>
-                </div>
-
-                <div className="p-3.5 rounded-2xl border border-slate-200 bg-slate-50 max-h-56 overflow-y-auto space-y-3">
-                  {/* Running Batches */}
-                  <div>
-                    <span className="text-[10px] font-bold text-[#F26622] uppercase tracking-wider block mb-1.5">
-                      চলমান ব্যাচসমূহ (Running)
-                    </span>
-                    <div className="grid grid-cols-2 gap-2">
-                      {batches
-                        .filter((b) => b.status === "RUNNING")
-                        .map((b) => {
-                          const isAssigned = editAssignedBatches.includes(b.id);
-                          return (
-                            <label
-                              key={b.id}
-                              className={`flex items-center gap-2 p-2.5 rounded-xl border cursor-pointer transition-all ${
-                                isAssigned
-                                  ? "bg-[#FFF4EE] border-[#F26622] text-[#F26622] font-bold"
-                                  : "bg-white border-slate-200 text-slate-700 hover:bg-slate-100"
-                              }`}
-                            >
-                              <input
-                                type="checkbox"
-                                checked={isAssigned}
-                                onChange={() => toggleBatchAssignment(b.id, true)}
-                                className="rounded text-[#F26622] focus:ring-[#F26622]"
-                              />
-                              <span className="text-xs">{b.name}</span>
-                            </label>
-                          );
-                        })}
-                    </div>
-                  </div>
-
-                  {/* Completed Batches */}
-                  <div>
-                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">
-                      সম্পন্ন / অন্যান্য ব্যাচসমূহ (Completed)
-                    </span>
-                    <div className="grid grid-cols-2 gap-2">
-                      {batches
-                        .filter((b) => b.status === "COMPLETED")
-                        .map((b) => {
-                          const isAssigned = editAssignedBatches.includes(b.id);
-                          return (
-                            <label
-                              key={b.id}
-                              className={`flex items-center gap-2 p-2 rounded-xl border cursor-pointer transition-all text-xs ${
-                                isAssigned
-                                  ? "bg-slate-200 border-slate-400 font-bold"
-                                  : "bg-white border-slate-200 text-slate-500 hover:bg-slate-100"
-                              }`}
-                            >
-                              <input
-                                type="checkbox"
-                                checked={isAssigned}
-                                onChange={() => toggleBatchAssignment(b.id, true)}
-                                className="rounded text-slate-600 focus:ring-slate-500"
-                              />
-                              <span>{b.name}</span>
-                            </label>
-                          );
-                        })}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowEditModal(false)}
-                  className="px-4 py-2 rounded-2xl font-bold text-slate-600 hover:bg-slate-100"
-                >
-                  বাতিল
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="px-6 py-2.5 rounded-2xl font-bold bg-[#662C90] hover:bg-[#532376] text-white shadow-sm disabled:opacity-50"
-                >
-                  {isSubmitting ? "সংরক্ষণ হচ্ছে..." : "পরিবর্তন সংরক্ষণ করুন"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Add Teacher Modal */}
+      {/* CREATE NEW USER / ADMIN / TEACHER MODAL */}
       {showAddModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4 max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4 animate-in fade-in zoom-in-95">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div>
+              <div className="flex items-center gap-2">
+                <Plus className="w-5 h-5 text-[#662C90]" />
                 <h3 className="font-extrabold text-slate-900 text-base">
-                  নতুন শিক্ষক অ্যাকাউন্ট তৈরি করুন
+                  নতুন ব্যবহারকারী / স্টাফ তৈরি করুন
                 </h3>
-                <p className="text-[11px] text-slate-500">
-                  শিক্ষকের লগইন ইউজারনেম ও পাসওয়ার্ড সেট করে দিন
-                </p>
               </div>
               <button
                 onClick={() => setShowAddModal(false)}
@@ -703,112 +567,151 @@ export const TeacherManagement: React.FC = () => {
               </button>
             </div>
 
-            <form onSubmit={handleCreateTeacher} className="space-y-4 text-xs">
+            {errorMessage && (
+              <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                {errorMessage}
+              </div>
+            )}
+
+            <form onSubmit={handleCreateUser} className="space-y-3.5 text-xs">
+              {/* Role Selector */}
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  অ্যাকাউন্টের ধরন / ভূমিকা (Account Role) *
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setNewRole("SUPER_ADMIN")}
+                    className={`p-3 rounded-xl border text-left font-bold transition-all flex items-center gap-2 ${
+                      newRole === "SUPER_ADMIN"
+                        ? "bg-purple-50 border-[#662C90] text-[#662C90] shadow-xs"
+                        : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                    }`}
+                  >
+                    <Crown className="w-4 h-4 text-[#662C90]" />
+                    <div>
+                      <span>সুপার অ্যাডমিন</span>
+                      <p className="text-[10px] font-normal text-slate-400">সম্পূর্ণ নিয়ন্ত্রণ</p>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setNewRole("TEACHER")}
+                    className={`p-3 rounded-xl border text-left font-bold transition-all flex items-center gap-2 ${
+                      newRole === "TEACHER"
+                        ? "bg-[#FFF4EE] border-[#F26622] text-[#F26622] shadow-xs"
+                        : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                    }`}
+                  >
+                    <UserCheck className="w-4 h-4 text-[#F26622]" />
+                    <div>
+                      <span>শিক্ষক (Teacher)</span>
+                      <p className="text-[10px] font-normal text-slate-400">হাজিরা ও ক্লাস লগ</p>
+                    </div>
+                  </button>
+                </div>
+              </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">
-                    শিক্ষকের নাম *
-                  </label>
+                  <label className="block font-bold text-slate-700 mb-1">পূর্ণ নাম (Full Name) *</label>
                   <input
                     type="text"
                     required
-                    placeholder="যেমন: Tanvir Sir"
+                    placeholder="যেমন: Rahim Ahmed"
                     value={newName}
                     onChange={(e) => setNewName(e.target.value)}
-                    className="w-full px-3.5 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-[#662C90] outline-none font-semibold"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-medium"
                   />
                 </div>
 
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">
-                    লগইন ইউজারনেম (Username) *
-                  </label>
+                  <label className="block font-bold text-slate-700 mb-1">লগইন ইউজারনেম (Username) *</label>
                   <input
                     type="text"
                     required
-                    placeholder="tanvir"
+                    placeholder="যেমন: rahim609"
                     value={newUsername}
                     onChange={(e) => setNewUsername(e.target.value)}
-                    className="w-full px-3.5 py-2 rounded-xl border border-slate-200 font-mono font-bold text-[#662C90]"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-mono text-xs"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">
-                    লগইন পাসওয়ার্ড (Password) *
-                  </label>
+                  <label className="block font-bold text-slate-700 mb-1">পাসওয়ার্ড (Password) *</label>
                   <input
                     type="text"
                     required
-                    placeholder="teacher123"
+                    placeholder="যেমন: massive123"
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
-                    className="w-full px-3.5 py-2 rounded-xl border border-slate-200 font-mono font-bold text-slate-800"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-mono text-xs font-bold text-purple-800"
                   />
                 </div>
 
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">
-                    ফোন নম্বর
-                  </label>
+                  <label className="block font-bold text-slate-700 mb-1">মোবাইল নম্বর (Phone)</label>
                   <input
                     type="text"
-                    placeholder="01711-xxxxxx"
+                    placeholder="017XXXXXXXX"
                     value={newPhone}
                     onChange={(e) => setNewPhone(e.target.value)}
-                    className="w-full px-3.5 py-2 rounded-xl border border-slate-200"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-mono text-xs"
                   />
                 </div>
               </div>
 
-              {/* Batch Assignment Selector */}
-              <div className="space-y-2">
-                <label className="block font-bold text-slate-800">
-                  শুরুতেই ব্যাচ নির্ধারণ করুন ({newAssignedBatches.length}টি সিলেক্টেড)
-                </label>
-                <div className="p-3.5 rounded-2xl border border-slate-200 bg-slate-50 max-h-48 overflow-y-auto space-y-2">
-                  <div className="grid grid-cols-2 gap-2">
+              {/* If Teacher, show batch assignment */}
+              {newRole === "TEACHER" && (
+                <div className="space-y-2 pt-2 border-t border-slate-100">
+                  <label className="block font-bold text-slate-700">
+                    নির্ধারিত ব্যাচ নির্বাচন করুন ({newAssignedBatches.length}টি নির্বাচিত):
+                  </label>
+                  <div className="max-h-36 overflow-y-auto grid grid-cols-2 gap-1.5 p-2 bg-slate-50 rounded-xl border border-slate-200">
                     {batches.map((b) => {
-                      const isAssigned = newAssignedBatches.includes(b.id);
+                      const isChecked = newAssignedBatches.includes(b.id);
                       return (
                         <label
                           key={b.id}
-                          className={`flex items-center gap-2 p-2 rounded-xl border cursor-pointer text-xs ${
-                            isAssigned
-                              ? "bg-[#FFF4EE] border-[#F26622] text-[#F26622] font-bold"
-                              : "bg-white border-slate-200 text-slate-700 hover:bg-slate-100"
+                          className={`p-2 rounded-lg border text-xs cursor-pointer flex items-center gap-2 select-none ${
+                            isChecked
+                              ? "bg-purple-100 border-[#662C90] text-[#662C90] font-bold"
+                              : "bg-white border-slate-200 text-slate-700"
                           }`}
                         >
                           <input
                             type="checkbox"
-                            checked={isAssigned}
+                            checked={isChecked}
                             onChange={() => toggleBatchAssignment(b.id, false)}
-                            className="rounded text-[#F26622] focus:ring-[#F26622]"
+                            className="rounded text-[#662C90]"
                           />
-                          <span>{b.name}</span>
+                          <span className="truncate">{b.name}</span>
                         </label>
                       );
                     })}
                   </div>
                 </div>
-              </div>
+              )}
 
-              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+              <div className="pt-3 border-t border-slate-100 flex justify-end gap-2">
                 <button
                   type="button"
                   onClick={() => setShowAddModal(false)}
-                  className="px-4 py-2 rounded-2xl font-bold text-slate-600 hover:bg-slate-100"
+                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold"
                 >
                   বাতিল
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="px-6 py-2.5 rounded-2xl font-bold bg-[#F26622] hover:bg-[#D95314] text-white shadow-sm disabled:opacity-50"
+                  className="px-5 py-2 rounded-xl bg-[#662C90] hover:bg-[#522375] text-white font-extrabold shadow-sm"
                 >
-                  {isSubmitting ? "তৈরি হচ্ছে..." : "শিক্ষক অ্যাকাউন্ট তৈরি করুন"}
+                  {isSubmitting ? "তৈরি হচ্ছে..." : "ইউজার তৈরি নিশ্চিত করুন"}
                 </button>
               </div>
             </form>
@@ -816,36 +719,154 @@ export const TeacherManagement: React.FC = () => {
         </div>
       )}
 
-      {/* Delete Teacher Confirmation Modal */}
-      {showDeleteConfirm && selectedTeacher && (
-        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-slate-200 space-y-4">
-            <div className="w-12 h-12 rounded-2xl bg-rose-50 text-rose-600 border border-rose-200 flex items-center justify-center mx-auto">
-              <Trash2 className="w-6 h-6" />
+      {/* EDIT USER MODAL */}
+      {showEditModal && selectedUser && (
+        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4 animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <Edit className="w-5 h-5 text-[#662C90]" />
+                <h3 className="font-extrabold text-slate-900 text-base">
+                  ইউজার তথ্য ও পাসওয়ার্ড এডিট
+                </h3>
+              </div>
+              <button
+                onClick={() => setShowEditModal(false)}
+                className="text-slate-400 hover:text-slate-700 font-bold"
+              >
+                ✕
+              </button>
             </div>
-            <div className="text-center">
+
+            <form onSubmit={handleSaveUserEdit} className="space-y-3.5 text-xs">
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">রোল (Role):</label>
+                <select
+                  value={editRole}
+                  onChange={(e) => setEditRole(e.target.value as UserRole)}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-bold text-[#662C90]"
+                >
+                  <option value="SUPER_ADMIN">👑 Super Admin (সম্পূর্ণ অ্যাক্সেস)</option>
+                  <option value="TEACHER">👨‍🏫 Teacher (হাজিরা শিট ও ক্লাস লগ)</option>
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">পূর্ণ নাম *</label>
+                  <input
+                    type="text"
+                    required
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-medium"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">ফোন নম্বর</label>
+                  <input
+                    type="text"
+                    value={editPhone}
+                    onChange={(e) => setEditPhone(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-mono"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  নতুন পাসওয়ার্ড (পরিবর্তন না করতে চাইলে খালি রাখুন):
+                </label>
+                <input
+                  type="text"
+                  placeholder="নতুন পাসওয়ার্ড লিখুন..."
+                  value={editPassword}
+                  onChange={(e) => setEditPassword(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-mono text-xs font-bold text-purple-800"
+                />
+              </div>
+
+              {/* Batch Selector for Teachers */}
+              {editRole === "TEACHER" && (
+                <div className="space-y-2 pt-2 border-t border-slate-100">
+                  <label className="block font-bold text-slate-700">
+                    নির্ধারিত ব্যাচ নির্বাচন করুন ({editAssignedBatches.length}টি):
+                  </label>
+                  <div className="max-h-36 overflow-y-auto grid grid-cols-2 gap-1.5 p-2 bg-slate-50 rounded-xl border border-slate-200">
+                    {batches.map((b) => {
+                      const isChecked = editAssignedBatches.includes(b.id);
+                      return (
+                        <label
+                          key={b.id}
+                          className={`p-2 rounded-lg border text-xs cursor-pointer flex items-center gap-2 select-none ${
+                            isChecked
+                              ? "bg-purple-100 border-[#662C90] text-[#662C90] font-bold"
+                              : "bg-white border-slate-200 text-slate-700"
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => toggleBatchAssignment(b.id, true)}
+                            className="rounded text-[#662C90]"
+                          />
+                          <span className="truncate">{b.name}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              <div className="pt-3 border-t border-slate-100 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowEditModal(false)}
+                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold"
+                >
+                  বাতিল
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="px-5 py-2 rounded-xl bg-[#662C90] hover:bg-[#522375] text-white font-extrabold shadow-sm"
+                >
+                  {isSubmitting ? "সংরক্ষণ হচ্ছে..." : "আপডেট নিশ্চিত করুন"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* DELETE CONFIRMATION MODAL */}
+      {userToDelete && (
+        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-slate-200 space-y-4 animate-in fade-in">
+            <div className="flex items-center gap-3 text-rose-600">
+              <ShieldAlert className="w-8 h-8 shrink-0" />
               <h3 className="font-extrabold text-slate-900 text-base">
-                শিক্ষক অ্যাকাউন্ট ডিলিট করবেন?
+                ইউজার ডিলিট নিশ্চিত করুন
               </h3>
-              <p className="text-xs text-slate-500 mt-1">
-                আপনি কি নিশ্চিতভাবে &apos;{selectedTeacher.name}&apos; (@{selectedTeacher.username})-কে ডিলিট করতে চান?
-              </p>
             </div>
-            <div className="flex items-center gap-2 pt-2">
+            <p className="text-xs text-slate-600">
+              আপনি কি নিশ্চিতভাবে <strong>"{userToDelete.name}"</strong> (@{userToDelete.username}) অ্যাকাউন্টটি মুছে ফেলতে চান?
+            </p>
+            <div className="flex justify-end gap-2 pt-2">
               <button
                 type="button"
-                onClick={() => setShowDeleteConfirm(false)}
-                className="flex-1 py-2.5 rounded-xl border border-slate-200 font-bold text-xs text-slate-700 hover:bg-slate-50"
+                onClick={() => setUserToDelete(null)}
+                className="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 font-bold text-xs"
               >
                 বাতিল
               </button>
               <button
                 type="button"
-                onClick={handleDeleteTeacher}
+                onClick={handleDeleteUser}
                 disabled={isSubmitting}
-                className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 font-bold text-xs text-white shadow-sm disabled:opacity-50"
+                className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs shadow-sm"
               >
-                {isSubmitting ? "ডিলিট হচ্ছে..." : "হ্যাঁ, ডিলিট করুন"}
+                {isSubmitting ? "মুছে ফেলা হচ্ছে..." : "হ্যাঁ, ডিলিট করুন"}
               </button>
             </div>
           </div>
