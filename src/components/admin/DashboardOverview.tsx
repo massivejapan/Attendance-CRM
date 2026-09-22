@@ -30,7 +30,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
   const { students, batches, users, classLogs, getStudentSummary } = useApp();
 
   const [drilldownType, setDrilldownType] = useState<
-    "STUDENTS" | "BATCHES" | "CLASSES" | "ABSENTEES" | "INTERVIEWS" | "BATCH_DETAIL" | "BATCH_COMPLETIONS" | null
+    "STUDENTS" | "BATCHES" | "CLASSES" | "ABSENTEES" | "INTERVIEWS" | "BATCH_DETAIL" | "BATCH_COMPLETIONS" | "TOP_STUDENTS" | null
   >(null);
   const [activeBatchModal, setActiveBatchModal] = useState<Batch | null>(null);
   const [modalSearch, setModalSearch] = useState("");
@@ -44,15 +44,20 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
   const interviewScheduledStudents = students.filter(
     (s) =>
       s.milestone?.stage === "INTERVIEW_SCHEDULED" ||
+      s.milestoneStage === "INTERVIEW_SCHEDULED" ||
       s.milestone?.interviewDate
   );
   const coeApprovedStudents = students.filter(
-    (s) => s.milestone?.stage === "COE_APPROVED"
+    (s) =>
+      s.milestone?.stage === "COE_APPROVED" ||
+      s.milestoneStage === "COE_APPROVED"
   );
   const visaApprovedStudents = students.filter(
     (s) =>
       s.milestone?.stage === "VISA_APPROVED" ||
-      s.milestone?.stage === "FLIGHT_READY"
+      s.milestoneStage === "VISA_APPROVED" ||
+      s.milestone?.stage === "FLIGHT_READY" ||
+      s.milestoneStage === "FLIGHT_READY"
   );
 
   // Batches finishing soon (sorted by daysRemaining)
@@ -60,6 +65,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
     .filter((b) => b.estimatedEndDate)
     .sort((a, b) => (a.daysRemaining || 999) - (b.daysRemaining || 999));
 
+  // Critical Absentees
   const criticalAbsentees = students
     .map((s) => ({
       student: s,
@@ -75,6 +81,26 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
       const absA = a.summary?.consecutiveAbsents || 0;
       const absB = b.summary?.consecutiveAbsents || 0;
       return absB - absA;
+    });
+
+  // Regular & Star Performers (Interview Priority Candidates)
+  const topRegularStudents = students
+    .filter((s) => s.status === "ACTIVE")
+    .map((s) => ({
+      student: s,
+      summary: getStudentSummary(s.id),
+    }))
+    .filter(
+      (item) =>
+        item.summary &&
+        item.summary.attendancePercentage >= 85 &&
+        item.summary.consecutiveAbsents === 0
+    )
+    .sort((a, b) => {
+      const pctA = a.summary?.attendancePercentage || 0;
+      const pctB = b.summary?.attendancePercentage || 0;
+      if (pctB !== pctA) return pctB - pctA;
+      return (b.summary?.presentCount || 0) - (a.summary?.presentCount || 0);
     });
 
   const displayedGridBatches = batches.filter((b) => {
@@ -404,6 +430,84 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
         </div>
       </div>
 
+      {/* NEW: Top Regular Students - Interview Priority Candidates */}
+      <div className="bg-white rounded-2xl p-5 border border-purple-200 bg-purple-50/20 shadow-sm space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-purple-100 pb-3">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-purple-100 text-[#662C90] flex items-center justify-center border border-purple-200 shadow-2xs">
+              <Sparkles className="w-4 h-4 text-[#662C90]" />
+            </div>
+            <div>
+              <h2 className="text-sm font-extrabold text-slate-900 flex items-center gap-1.5">
+                🌟 নিয়মিত শিক্ষার্থী ও ইন্টারভিউ অগ্রাধিকার তালিকা
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-100 text-[#662C90]">
+                  {topRegularStudents.length} জন প্রস্তুত
+                </span>
+              </h2>
+              <p className="text-[11px] text-slate-500">
+                টানা উপস্থিতি ও ৮৫%-১০০% ক্লাসে উপস্থিত শিক্ষার্থীদের তালিকা — আসন্ন ইন্টারভিউ ও ভিসার জন্য শীর্ষ অগ্রাধিকার দিন।
+              </p>
+            </div>
+          </div>
+
+          <button
+            onClick={() => setDrilldownType("TOP_STUDENTS")}
+            className="text-xs font-extrabold text-[#662C90] hover:underline flex items-center gap-1 self-start sm:self-auto"
+          >
+            সম্পূর্ণ অগ্রাধিকার তালিকা দেখুন ({topRegularStudents.length}) →
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 pt-1">
+          {topRegularStudents.slice(0, 4).map(({ student, summary }, rank) => (
+            <div
+              key={student.id}
+              onClick={() => onSelectStudent(student.id)}
+              className="p-3.5 rounded-xl border border-purple-100 bg-white hover:border-[#662C90] transition-all cursor-pointer space-y-2 shadow-2xs hover:shadow-xs group"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <span className="w-5 h-5 rounded-full bg-amber-100 text-amber-800 flex items-center justify-center text-[10px] font-black border border-amber-300">
+                    #{rank + 1}
+                  </span>
+                  <h3 className="font-extrabold text-slate-900 text-xs group-hover:text-[#662C90] transition-colors truncate max-w-[120px]">
+                    {student.name}
+                  </h3>
+                </div>
+                <span className="text-[10px] font-mono text-slate-400">
+                  #{student.studentIdCode}
+                </span>
+              </div>
+
+              <div className="text-[11px] space-y-1">
+                <div className="flex items-center justify-between text-slate-500">
+                  <span>ব্যাচ:</span>
+                  <strong className="text-slate-700 font-semibold">{student.batchName || "N/A"}</strong>
+                </div>
+                <div className="flex items-center justify-between text-slate-500">
+                  <span>উপস্থিত ক্লাস:</span>
+                  <strong className="text-emerald-700 font-bold">{summary?.presentCount} দিন ({summary?.attendancePercentage}%)</strong>
+                </div>
+              </div>
+
+              <div className="pt-1 border-t border-slate-100 flex items-center justify-between">
+                <span className="text-[10px] font-bold text-[#662C90] bg-purple-50 px-2 py-0.5 rounded border border-purple-200">
+                  {student.milestone?.stage || student.milestoneStage || "কোর্স চলমান"}
+                </span>
+                <span className="text-[10px] font-bold text-[#F26622] group-hover:underline">
+                  প্রোফাইল →
+                </span>
+              </div>
+            </div>
+          ))}
+          {topRegularStudents.length === 0 && (
+            <p className="col-span-4 text-center py-4 text-xs text-slate-400">
+              বর্তমানে কোনো নিয়মিত শিক্ষার্থীর তথ্য পাওয়া যায়নি।
+            </p>
+          )}
+        </div>
+      </div>
+
       {/* Critical Absentee Watchlist */}
       <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm space-y-3">
         <div className="flex items-center justify-between border-b border-slate-100 pb-3">
@@ -478,6 +582,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                 {drilldownType === "BATCHES" && "ব্যাচ তালিকা"}
                 {drilldownType === "ABSENTEES" && "অনুপস্থিতি অ্যালার্ট তালিকা"}
                 {drilldownType === "INTERVIEWS" && "ইন্টারভিউ শিডিউল"}
+                {drilldownType === "TOP_STUDENTS" && "🌟 নিয়মিত ও সেরা শিক্ষার্থী তালিকা (ইন্টারভিউ অগ্রাধিকার)"}
                 {drilldownType === "BATCH_DETAIL" && activeBatchModal?.name}
               </h3>
               <button
@@ -576,6 +681,40 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                         প্রোফাইল
                       </button>
                     </div>
+                  </div>
+                ))}
+
+              {drilldownType === "TOP_STUDENTS" &&
+                topRegularStudents.map(({ student: st, summary }, rank) => (
+                  <div
+                    key={st.id}
+                    className="py-3 flex items-center justify-between hover:bg-slate-50 px-2 rounded-lg"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <span className="w-6 h-6 rounded-full bg-purple-100 text-[#662C90] flex items-center justify-center font-bold text-xs">
+                        #{rank + 1}
+                      </span>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <p className="font-bold text-slate-900 text-xs">{st.name}</p>
+                          <span className="text-[10px] font-mono text-slate-400">
+                            #{st.studentIdCode}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-500">
+                          ব্যাচ: {st.batchName || "N/A"} • মোট উপস্থিতি: <strong className="text-emerald-700 font-bold">{summary?.presentCount} দিন ({summary?.attendancePercentage}%)</strong> • {st.milestone?.stage || st.milestoneStage || "ভাষা কোর্স"}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setDrilldownType(null);
+                        onSelectStudent(st.id);
+                      }}
+                      className="px-3 py-1.5 rounded-lg bg-[#662C90] hover:bg-[#522375] text-white font-bold text-xs"
+                    >
+                      প্রোফাইল ও ইন্টারভিউ
+                    </button>
                   </div>
                 ))}
 
